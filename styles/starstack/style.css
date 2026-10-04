@@ -4,14 +4,18 @@
    Built into the fork by scripts/build_ks_theme.py → styles/starstack/
    Structure follows styles/material-dark/style.css so every stock widget
    is styled. Brand: StarStack Brand Sheet v1.0 (dark tokens).
+   NOTE: the TFT35 SPI framebuffer is 16-bit (RGB565). Neutral greys must
+   use channel values that are multiples of 8, or they show a green tint
+   (#161616 renders as #101410). Brand greys are snapped to the nearest
+   neutral value below.
    ===================================================================== */
 
 @define-color text #FAFAFA;
 @define-color muted #A1A1A1;
-@define-color bg #0A0A0A;
-@define-color buttons-bg #161616;
-@define-color surface-2 #1F1F1F;
-@define-color rail #111111;
+@define-color bg #080808;          /* brand #0A0A0A, snapped for 16-bit TFT */
+@define-color buttons-bg #181818;  /* brand #161616, snapped (avoids green tint) */
+@define-color surface-2 #202020;
+@define-color rail #101010;
 @define-color lines #282828;
 
 @define-color primary #0D3C96;     /* button fills */
@@ -31,7 +35,7 @@
 @define-color error-text #FF6467;  /* error text on dark */
 
 @define-color active #0D3C96;
-@define-color active-dark #1F1F1F;
+@define-color active-dark #202020;
 @define-color slider #00ACC7;
 
 * {
