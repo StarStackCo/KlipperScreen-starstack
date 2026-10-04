@@ -96,6 +96,14 @@ class Prompt:
 
     def show(self):
         logging.info(f'Prompt {self.header} {self.text} {self.buttons}')
+        # STARSTACK-CHANGE #9 BEGIN: show prompts inside the content area so the STOP rail stays visible
+        from ks_includes import starstack
+        if starstack.enabled(self.screen):
+            self.prompt = "ss_prompt"
+            starstack._push(self.screen, "ss_prompt", ss_prompt=self)
+            self.screen.screensaver.close()
+            return
+        # STARSTACK-CHANGE #9 END
 
         title = Gtk.Label(wrap=True, hexpand=True, vexpand=False, halign=Gtk.Align.CENTER, label=self.header)
 
@@ -139,6 +147,13 @@ class Prompt:
         self.screen._send_action(None, "printer.gcode.script", script)
 
     def end(self):
+        # STARSTACK-CHANGE #9 BEGIN: close the in-content prompt panel
+        if self.prompt == "ss_prompt":
+            if self.screen._cur_panels and self.screen._cur_panels[-1] == "ss_prompt":
+                self.screen._menu_go_back()
+            self.prompt = None
+            return
+        # STARSTACK-CHANGE #9 END
         if self.prompt is not None:
             self.gtk.remove_dialog(self.prompt)
         self.prompt = None

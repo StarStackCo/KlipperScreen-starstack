@@ -43,3 +43,8 @@ git push origin starstack
 | 1 | 2026-10-04 | Docs | `FORK_CHANGES.md` | No (new file) | This change log |
 | 2 | 2026-10-04 | Docs | `README.md` (top) | **Yes**, 3-line notice block | Points readers to this file |
 | 3 | 2026-10-04 | Theme | `styles/starstack/` (style.css, style.conf, images/, fonts/, LICENSES.md) | No (new folder) | StarStack brand theme. **Generated**: edit `klipperscreen/style.css` in `StarStackCo/klipper-ui` and run `scripts/build_ks_theme.py`, don't hand-edit. Icons: Bootstrap Icons 1.13.1 (MIT) where marked, otherwise material-dark artwork. Font: Public Sans 2.001 (OFL), installed to `~/.local/share/fonts` by `scripts/deploy-ks-bench.sh` |
+| 4–7 | 2026-10-04 | Rail | `panels/base_panel.py` (#4 init + import, #5 add_content, #6 process_update, #7 reload_icons) | **Yes**, marked blocks | StarStack rail (4 pages + STOP, red when active / gray when idle) via `ks_includes/starstack.py` |
+| 8 | 2026-10-04 | Start screen | `screen.py` (import, state_ready/printing/paused) | **Yes**, marked blocks | `ss_home` replaces main_menu/job_status when theme = starstack |
+| 9 | 2026-10-04 | Prompts | `ks_includes/widgets/prompts.py` (show/end) | **Yes**, marked blocks | Macro prompts in-content (`panels/ss_prompt.py`) so STOP is never covered |
+| 10–18 | 2026-10-04 | Screens | `ks_includes/starstack.py`, `ks_includes/starstack_devtools.py` (bench-only, off without ~/.starstack_dev), `panels/ss_home/ss_print/ss_controls/ss_settings/ss_dialog/ss_adjust/ss_cancel_object/ss_filament/ss_prompt.py` | No (new files) | Approved StarStack design (klipper-ui D-029/D-030) |
+

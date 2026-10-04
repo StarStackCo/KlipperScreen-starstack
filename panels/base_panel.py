@@ -9,6 +9,9 @@ from jinja2 import Environment
 from datetime import datetime
 from math import log
 from ks_includes.screen_panel import ScreenPanel
+# STARSTACK-CHANGE #4 BEGIN: StarStack UI module
+from ks_includes import starstack
+# STARSTACK-CHANGE #4 END
 
 try:
     import psutil
@@ -127,6 +130,9 @@ class BasePanel(ScreenPanel):
             self.main_grid.attach(self.content, 1, 1, 1, 1)
 
         self.update_time()
+        # STARSTACK-CHANGE #4 BEGIN: StarStack rail replaces the action bar when the theme is "starstack"
+        self.ss_rail = starstack.StarStackRail(self) if starstack.enabled(self._screen) else None
+        # STARSTACK-CHANGE #4 END
 
     def load_battery_icons(self):
         img_size = self._gtk.img_scale * self.bts
@@ -141,6 +147,10 @@ class BasePanel(ScreenPanel):
         }
 
     def reload_icons(self):
+        # STARSTACK-CHANGE #7 BEGIN: rail buttons are built by StarStackRail (STOP has no plain image)
+        if self.ss_rail:
+            return
+        # STARSTACK-CHANGE #7 END
         button: Gtk.Button
         for button in self.action_bar.get_children():
             img = button.get_image()
@@ -235,6 +245,16 @@ class BasePanel(ScreenPanel):
             self.battery_update = GLib.timeout_add_seconds(60, self.battery_percentage)
 
     def add_content(self, panel):
+        # STARSTACK-CHANGE #5 BEGIN: the rail manages page highlight and STOP, skip stock action-bar logic
+        if self.ss_rail:
+            connected = self._printer and self._printer.state not in {'disconnected', 'startup', 'shutdown', 'error'}
+            self.show_heaters(connected)
+            self.current_panel = panel
+            self.set_title(panel.title)
+            self.content.add(panel.content)
+            self.ss_rail.on_panel(self._screen._cur_panels[-1] if self._screen._cur_panels else None)
+            return
+        # STARSTACK-CHANGE #5 END
         printing = self._printer and self._printer.state in {"printing", "paused"}
         connected = self._printer and self._printer.state not in {'disconnected', 'startup', 'shutdown', 'error'}
         printer_select = 'printer_select' not in self._screen._cur_panels
@@ -259,6 +279,10 @@ class BasePanel(ScreenPanel):
             self._screen._menu_go_back()
 
     def process_update(self, action, data):
+        # STARSTACK-CHANGE #6 BEGIN: keep STOP colour in sync with printer activity
+        if self.ss_rail:
+            self.ss_rail.process_update(action, data)
+        # STARSTACK-CHANGE #6 END
         if action == "notify_proc_stat_update":
             cpu = data["system_cpu_usage"]["cpu"]
             memory = (data["system_memory"]["used"] / data["system_memory"]["total"]) * 100

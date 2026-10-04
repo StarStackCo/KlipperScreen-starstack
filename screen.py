@@ -26,6 +26,9 @@ from ks_includes.KlippyWebsocket import KlippyWebsocket
 from ks_includes.KlippyRest import KlippyRest
 from ks_includes.files import KlippyFiles
 from ks_includes.KlippyGtk import KlippyGtk
+# STARSTACK-CHANGE #8 BEGIN: StarStack UI module
+from ks_includes import starstack
+# STARSTACK-CHANGE #8 END
 from ks_includes.printer import Printer
 from ks_includes.widgets.keyboard import Keyboard
 from ks_includes.widgets.prompts import Prompt
@@ -761,11 +764,21 @@ class KlipperScreen(Gtk.Window):
         self.printer_initializing(msg + "\n" + state, go_to_splash=True)
 
     def state_paused(self):
+        # STARSTACK-CHANGE #8 BEGIN: StarStack Home shows the paused job (no auto-open of the extrude panel)
+        if starstack.enabled(self):
+            self.state_printing()
+            return
+        # STARSTACK-CHANGE #8 END
         self.state_printing()
         if self._config.get_main_config().getboolean("auto_open_extrude", fallback=True):
             self.show_panel("extrude")
 
     def state_printing(self):
+        # STARSTACK-CHANGE #8 BEGIN: StarStack Home replaces job_status
+        if starstack.enabled(self):
+            self.show_panel("ss_home", remove_all=True)
+            return
+        # STARSTACK-CHANGE #8 END
         self.show_panel("job_status", remove_all=True)
 
     def state_ready(self, wait=True):
@@ -777,6 +790,12 @@ class KlipperScreen(Gtk.Window):
             self.printer.state = "not ready"
             return
         self.files.refresh_files()
+        # STARSTACK-CHANGE #8 BEGIN: StarStack Home replaces main_menu
+        if starstack.enabled(self):
+            if not self._cur_panels or self._cur_panels[0] != "ss_home":
+                self.show_panel("ss_home", remove_all=True)
+            return
+        # STARSTACK-CHANGE #8 END
         self.show_panel("main_menu", remove_all=True, items=self._config.get_menu_items("__main"))
 
     def state_startup(self):

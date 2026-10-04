@@ -266,3 +266,101 @@ button.active {
 .title_bar {
     background-color: @bg;
 }
+
+/* =====================================================================
+   STARSTACK-ADDED: StarStack screens (ss_* panels, rail). Classes are set
+   in ks_includes/starstack.py and panels/ss_*.py of the fork.
+   Sizes in px for the 480×320 TFT35; touch targets ≥ 40–44 px.
+   ===================================================================== */
+.ss-page { padding: 6px 14px 12px 10px; }
+.ss-section { font-size: 10px; font-weight: 600; color: @muted; }
+.ss-page-title { font-size: 16px; font-weight: 800; }
+.ss-muted { font-size: 11px; color: @muted; }
+.ss-text-hot, .ss-text-warning { color: @warning; }
+.ss-text-error { color: @error-text; }
+.ss-text-sky { color: @sky; }
+
+button.ss-btn {
+    padding: 4px; margin: 0; border: 0; border-radius: 10px; box-shadow: none;
+    background-image: none; background-color: @buttons-bg; min-height: 0; min-width: 0;
+}
+button.ss-btn:disabled label { color: #707070; }
+.ss-btn-text { font-size: 14px; font-weight: 800; }
+.ss-btn-sub { font-size: 10px; font-weight: 400; color: @muted; }
+button.ss-btn-card { background-color: @buttons-bg; }
+button.ss-btn-outline { background-color: transparent; border: 1px solid @lines; }
+button.ss-btn-primary { background-color: @primary; }
+button.ss-btn-danger { background-color: @error; }
+button.ss-btn-warning { background-color: @warning; }
+button.ss-btn-warning label { color: @bg; }
+button.ss-btn-outline-danger { background-color: transparent; border: 1px solid @error-text; }
+button.ss-btn-outline-danger label { color: @error-text; }
+button.ss-btn-outline-accent { background-color: transparent; border: 1px solid @accent; }
+button.ss-btn-outline-accent label { color: @sky; }
+button.ss-btn-locked { background-color: transparent; border: 1px dashed @lines; }
+button.ss-btn-danger:disabled { background-color: @lines; }
+
+button.ss-btn-tall { min-height: 56px; }
+button.ss-btn-action, button.ss-btn-lg { min-height: 46px; }
+button.ss-btn-mid, button.ss-btn-jog, button.ss-btn-step { min-height: 44px; }
+button.ss-btn-chip { min-height: 40px; background-color: transparent; border: 1px solid @lines; }
+button.ss-chip-active { background-color: @primary; border: 1px solid @accent; }
+button.ss-chip-active .ss-btn-sub { color: @sky; }
+button.ss-btn-tile { min-height: 50px; padding: 2px; }
+button.ss-btn-temp { min-height: 50px; }
+button.ss-btn-mat { min-height: 76px; }
+button.ss-btn-sm { min-height: 32px; }
+button.ss-btn-sm .ss-btn-text { font-size: 12px; font-weight: 600; }
+button.ss-btn-pager { min-height: 40px; min-width: 64px; }
+button.ss-btn-pager .ss-btn-text { font-size: 18px; }
+button.ss-btn-sort { min-height: 36px; padding: 0 10px; }
+button.ss-btn-sort .ss-btn-text { font-size: 12px; font-weight: 700; }
+button.ss-hot .ss-btn-sub { color: @warning; }
+button.ss-btn-jog .ss-btn-text { font-size: 12px; }
+
+button.ss-tile { padding: 6px; }
+button.ss-tile-highlight { border: 1px solid @accent; }
+.ss-tile-title { font-size: 11px; font-weight: 800; }
+.ss-tile-value { font-size: 14px; font-weight: 800; }
+.ss-thumb { background-color: @surface-2; border-radius: 8px; }
+
+.ss-card { background-color: @buttons-bg; border-radius: 10px; padding: 8px; }
+.ss-job-name { font-size: 14px; font-weight: 800; }
+.ss-pct { font-size: 26px; font-weight: 900; color: @sky; }
+.ss-done-title { font-size: 20px; font-weight: 900; }
+progressbar.ss-progress trough { min-height: 6px; background-color: @lines; border-radius: 3px; border: 0; }
+progressbar.ss-progress progress { min-height: 6px; background-color: @accent; border-radius: 3px; border: 0; }
+progressbar.ss-progress-paused progress { background-color: @warning; }
+
+.ss-dialog { background-color: @buttons-bg; border: 1px solid @lines; border-radius: 10px; padding: 14px; }
+.ss-dialog-title { font-size: 16px; font-weight: 900; }
+.ss-dialog-body { font-size: 12px; color: #C8C8C8; }
+.ss-big-value { font-size: 40px; font-weight: 900; color: @sky; }
+
+button.ss-row { min-height: 44px; padding: 0 12px; }
+button.ss-row-tall { min-height: 54px; }
+button.ss-row-obj { min-height: 36px; padding: 0 6px; border: 1px solid @lines; }
+button.ss-row-selected { border: 1px solid @error-text; }
+.ss-row-title { font-size: 13px; font-weight: 600; }
+.ss-switch-on, .ss-switch-off { border-radius: 13px; min-width: 46px; min-height: 26px; }
+.ss-switch-on { background-color: @warning; }
+.ss-switch-on label { color: @bg; }
+.ss-switch-off { background-color: @lines; }
+.ss-switch-text { font-size: 10px; font-weight: 800; }
+.ss-badge { background-color: @accent; color: @bg; border-radius: 6px; min-width: 22px; min-height: 22px; font-size: 11px; font-weight: 900; }
+.ss-badge-selected { background-color: @error-text; }
+.ss-badge-gone { background-color: #404040; color: #707070; }
+.ss-dot { background-color: @lines; border-radius: 4px; }
+.ss-dot-on { background-color: @accent; border-radius: 4px; }
+
+/* Rail */
+.ss-rail { background-color: @rail; padding: 10px 6px 14px 6px; }
+button.ss-rail-btn { min-height: 44px; min-width: 48px; padding: 0; margin: 0; border: 0; border-radius: 10px; background-color: transparent; background-image: none; box-shadow: none; }
+button.ss-rail-active { background-color: @primary; }
+button.ss-stop { min-height: 52px; padding: 0; margin: 0; border: 0; border-radius: 10px; background-image: none; box-shadow: none; }
+button.ss-stop-active { background-color: @error; }
+button.ss-stop-idle { background-color: #303030; }
+button.ss-stop-idle box { opacity: 0.55; }
+.ss-stop-text { font-size: 10px; font-weight: 900; color: #FFFFFF; }
+.ss-switch-on, .ss-switch-off { padding: 0; }
+button.ss-tile .ss-tile-title { margin-top: 2px; }
