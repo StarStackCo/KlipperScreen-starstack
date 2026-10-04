@@ -1,3 +1,7 @@
+<!-- STARSTACK-CHANGE #2 BEGIN: fork notice (see FORK_CHANGES.md) -->
+> **StarStack fork.** This is a private StarStack copy of KlipperScreen. Every file that is added or changed compared to upstream is listed in [FORK_CHANGES.md](FORK_CHANGES.md), and every change in the code is marked `STARSTACK-ADDED` (new files) or `STARSTACK-CHANGE #n BEGIN/END` (edits to upstream files).
+<!-- STARSTACK-CHANGE #2 END -->
+
 # KlipperScreen
 
 KlipperScreen is a touchscreen GUI that interfaces with [Klipper](https://github.com/Klipper3d/klipper) via [Moonraker](https://github.com/arksine/moonraker). It allows you to switch between multiple printers and access them from a single location. Notably, it doesn't need to run on the same host as your printer; you can install it on another device and configure the IP address to connect to the printer.

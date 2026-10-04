@@ -1,0 +1,264 @@
+/* =====================================================================
+   STARSTACK-ADDED: StarStack theme for KlipperScreen
+   Source of truth: StarStackCo/klipper-ui  klipperscreen/style.css
+   Built into the fork by scripts/build_ks_theme.py → styles/starstack/
+   Structure follows styles/material-dark/style.css so every stock widget
+   is styled. Brand: StarStack Brand Sheet v1.0 (dark tokens).
+   ===================================================================== */
+
+@define-color text #FAFAFA;
+@define-color muted #A1A1A1;
+@define-color bg #0A0A0A;
+@define-color buttons-bg #161616;
+@define-color surface-2 #1F1F1F;
+@define-color rail #111111;
+@define-color lines #282828;
+
+@define-color primary #0D3C96;     /* button fills */
+@define-color accent #00ACC7;      /* highlights, focus */
+@define-color sky #88D8F2;         /* selected */
+@define-color slate #8FA0B8;
+
+/* material-dark's four menu colours → calm brand set */
+@define-color color1 #00ACC7;
+@define-color color2 #88D8F2;
+@define-color color3 #8FA0B8;
+@define-color color4 #0D3C96;
+
+@define-color echo #5CA300;        /* success */
+@define-color warning #FF8904;     /* hot / warning */
+@define-color error #E7000B;       /* fills with white text */
+@define-color error-text #FF6467;  /* error text on dark */
+
+@define-color active #0D3C96;
+@define-color active-dark #1F1F1F;
+@define-color slider #00ACC7;
+
+* {
+    color: @text;
+    font-family: "Public Sans", sans-serif;
+}
+
+/* Console / logs stay monospace (base.css uses Free Mono) */
+textview,
+textview text {
+    font-family: "Free Mono", monospace;
+}
+
+junction,
+list row,
+treeview.view,
+window {
+    background-color: @bg;
+}
+
+button {
+    background-color: @buttons-bg;
+    border-radius: 10px;
+    font-weight: 800;
+}
+
+/* Menu tiles: flat cards, thin accent underline instead of loud colour bars */
+button.color1,
+button.color2,
+button.color3,
+button.color4 {
+    background-color: @buttons-bg;
+    border-radius: 10px;
+}
+button.color1 { border-color: @color1; }
+button.color2 { border-color: @color2; }
+button.color3 { border-color: @color3; }
+button.color4 { border-color: @color4; }
+
+.button_active {
+    background-color: @primary;
+    border-width: .2em;
+    border-radius: 10px;
+}
+
+.active image,
+button.color1:active,
+button.color2:active,
+button.color3:active,
+button.color4:active,
+button.update:active,
+button.invalid:active,
+.dialog button:active {
+    border-style: none;
+}
+
+button.update,
+button.invalid {
+    background-color: @buttons-bg;
+    border: 0;
+    border-bottom: .3em solid;
+    border-radius: 10px;
+}
+button.update { border-bottom-color: @echo; }
+button.invalid { border-bottom-color: @error-text; }
+
+menu,
+menuitem,
+combobox button,
+combobox arrow,
+combobox menuitem {
+    background-color: @active-dark;
+    border-color: @bg;
+}
+
+treeview.view check,
+switch {
+    background-color: @lines;
+}
+
+treeview.view check:checked,
+switch:checked {
+    background-color: @warning;   /* matches the Advanced-mode switch in the design */
+}
+
+treeview.view check:checked {
+    -gtk-icon-source: url("./styles/starstack/images/complete.svg");
+}
+
+entry {
+    background-color: @active-dark;
+    border-color: @lines;
+    border-radius: 10px;
+}
+
+label {
+    color: @text;
+}
+
+trough {
+    background-color: @lines;
+    color: @text;
+}
+
+trough highlight,
+trough progress {
+    background-color: @slider;
+    color: @text;
+    border-color: @bg;
+}
+
+scale-mark {
+    color: @muted;
+}
+
+scrollbar,
+scrollbar button,
+scrollbar trough {
+    background-color: @bg;
+}
+
+scrollbar slider {
+    background-color: @lines;
+}
+
+textview .time {
+    color: @muted;
+}
+
+.dialog {
+    border: @bg;
+    background-color: @buttons-bg;
+}
+
+.dialog button {
+    background-color: @surface-2;
+    border-radius: 10px;
+}
+
+.horizontal_togglebuttons {
+    border-color: @bg;
+    background-color: @buttons-bg;
+}
+
+button:active,
+.horizontal_togglebuttons_active,
+button.active {
+    background-color: @active;
+}
+
+.fan_slider {
+    color: @text;
+}
+
+.message_popup {
+    border-bottom-color: @text;
+}
+
+.message_popup_echo,
+.message_popup_echo button {
+    background-color: @echo;
+}
+
+.message_popup_warning,
+.message_popup_warning button {
+    background-color: @warning;
+    color: @bg;
+}
+
+.message_popup_error,
+.message_popup_error button {
+    background-color: @error;
+}
+
+.numpad_key {
+    border-color: @bg;
+    background-color: @buttons-bg;
+}
+
+.printing-status,
+.printing-progress-text,
+.printing-status-label {
+    color: @text;
+}
+
+.message {
+    border-color: @error;
+    color: @text;
+    background-color: @error;
+}
+
+.message button {
+    background-color: @text;
+    color: @bg;
+}
+
+.warning {
+    background-color: @warning;
+}
+
+.error {
+    background-color: @error;
+}
+
+.keyboard_pad {
+    background-color: @buttons-bg;
+}
+
+.dialog-error { border-bottom-color: @error-text; }
+.dialog-warning { border-bottom-color: @warning; }
+.dialog-info { border-bottom-color: @accent; }
+.dialog-default { border-bottom-color: @slate; }
+.dialog-secondary { border-bottom-color: @sky; }
+.dialog-primary { border-bottom-color: @accent; }
+
+/* Left rail (action bar) */
+.action_bar {
+    background-color: @rail;
+}
+.action_bar button {
+    background-color: transparent;
+}
+.action_bar button:active {
+    background-color: @primary;
+}
+
+/* Title bar */
+.title_bar {
+    background-color: @bg;
+}
