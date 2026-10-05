@@ -71,6 +71,7 @@ Numbers **2–12** are edits inside upstream KlipperScreen files: the code carri
 | 10 | 2026-10-05 | `screen.py` `notify_gcode_response` | Routine `echo:` messages are not pop-ups (still in the console). Cold-extrude warning doesn't jump to the stock panel |
 | 11 | 2026-10-05 | `screen.py` `printer_initializing`, power-update guard | `ss_starting` replaces the stock splash while Klipper starts/restarts/reconnects |
 | 12 | 2026-10-05 | `.gitignore` | Ignore `tools/starstack/.cache/` (downloaded theme sources) |
+| 13 | 2026-10-05 | `screen.py` `show_keyboard` | Touch-sized on-screen keyboard (4 rows × 44 px keys, edge margins, `.ss-keyboard` style) next to the rail |
 
 ### Files we added (never conflict)
 | # | Date | Files | What |

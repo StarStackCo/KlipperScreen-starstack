@@ -24,6 +24,7 @@ SPEEDS = [("Silent", 50, "SPEED_SILENT"), ("Normal", 100, "SPEED_NORMAL"),
           ("Fast", 125, "SPEED_FAST"), ("Draft", 150, "SPEED_DRAFT")]
 STATE_FILE = os.path.expanduser("~/printer_data/config/.starstack_ui.json")
 PAGES = ("ss_home", "ss_print", "ss_controls", "ss_settings")
+KEYBOARD_HEIGHT = 4 * (44 + 1) + 2 + 16       # 4 rows of 44 px keys, 1 px row gap, 16 px bottom margin (hook #13)
 
 
 def enabled(screen):
