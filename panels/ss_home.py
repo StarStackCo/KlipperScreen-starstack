@@ -22,6 +22,7 @@ class Panel(ScreenPanel):
         self.recent_cache = (0, [])
         self.history_jobs = []
         self.history_pending = False
+        self.history_stamp = 0
         self.dismissed = None
         self.resume_at = None  # target °C while reheating before resume
         self.speed_pending = None  # tapped speed preset not yet applied by Klipper
@@ -65,7 +66,9 @@ class Panel(ScreenPanel):
         stamp, jobs = self.recent_cache
         if time.time() - stamp < 30 and jobs:
             return jobs
-        if not self.history_pending:  # async: refresh_idle runs again when the history arrives
+        # async: refresh_idle runs again when the history arrives (at most every 30 s, so the
+        # redraw it triggers doesn't request the history again)
+        if not self.history_pending and time.time() - self.history_stamp > 30:
             self.history_pending = True
             ss.history(self._screen, 30, self._history_done)
         jobs, seen = [], set()
@@ -90,6 +93,7 @@ class Panel(ScreenPanel):
 
     def _history_done(self, jobs):
         self.history_pending = False
+        self.history_stamp = time.time()
         self.history_jobs = jobs or []
         self.recent_cache = (0, [])
         if self.stack.get_visible_child_name() == "idle":
@@ -577,7 +581,8 @@ class Panel(ScreenPanel):
     def activate(self):
         if self.ticker is None:
             self.ticker = GLib.timeout_add_seconds(4, self.tick)
-        self.recent_cache = (0, []) if not ss.is_printing(self._printer) else self.recent_cache
+        if not ss.is_printing(self._printer):
+            self.recent_cache, self.history_stamp = (0, []), 0  # fresh history when Home opens
         self.tiles_adv = None
         if self._printer and not ss.is_printing(self._printer):
             self.refresh_idle()

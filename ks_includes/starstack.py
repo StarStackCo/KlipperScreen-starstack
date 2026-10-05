@@ -125,15 +125,11 @@ def thumbnail(panel, filename, size, image):
     """Fill a Gtk.Image with the file's thumbnail asynchronously (placeholder until loaded)."""
 
     def done(pixbuf):
-        logging.info(f"SSDBG thumb done {filename} pixbuf={pixbuf} parent={image.get_parent()}")
         if pixbuf is not None and image.get_parent() is not None:
             image.set_from_pixbuf(pixbuf)
         return False
 
     files = panel._files
-    logging.info(f"SSDBG thumb {filename} has={files.has_thumbnail(filename)} "
-                 f"meta={files.file_metadata_exists(filename)} known={filename in files.files} "
-                 f"loc={files.get_thumbnail_location(filename) if files.has_thumbnail(filename) else None}")
     if not files.has_thumbnail(filename):
         if files.file_metadata_exists(filename):
             return  # metadata loaded, the file just has no thumbnail: keep the placeholder
@@ -144,17 +140,6 @@ def thumbnail(panel, filename, size, image):
         if filename not in files.files:
             files.request_metadata(filename)
         return
-    ex = panel._gtk._executor
-    logging.info(f"SSDBG exec q={ex._work_queue.qsize()} threads={len(ex._threads)} shut={ex._shutdown}")
-
-    def probe():
-        try:
-            pb = panel._gtk.PixbufFromFile(files.get_thumbnail_location(filename)[1], size, size)
-            logging.info(f"SSDBG probe ok {pb}")
-        except Exception as e:
-            logging.exception(e)
-
-    ex.submit(probe)
     try:
         panel.load_image_async(filename, size, size, callback=done)
     except Exception as e:
