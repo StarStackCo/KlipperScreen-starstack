@@ -1,4 +1,4 @@
-# STARSTACK-ADDED: Settings page (scrolls): Advanced mode + tools + printer settings (FORK_CHANGES.md #14)
+# STARSTACK-ADDED: Settings page (scrolls): Advanced mode + tools + printer settings (FORK_CHANGES.md #25)
 # Advanced tools live here so Controls never scrolls (D-029). Stock KlipperScreen panels are reused.
 import gi
 

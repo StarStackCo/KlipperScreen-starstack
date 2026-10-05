@@ -1,4 +1,4 @@
-# STARSTACK-ADDED: shared code for the StarStack touchscreen UI (FORK_CHANGES.md #4-#7)
+# STARSTACK-ADDED: shared code for the StarStack touchscreen UI (FORK_CHANGES.md #20)
 #
 # The StarStack UI is active only when the theme is "starstack", so choosing any
 # other theme in KlipperScreen's settings gives back the stock UI.
@@ -239,7 +239,8 @@ def info(screen, title, body):
 
 
 def close_dialog(screen):
-    if screen._cur_panels and screen._cur_panels[-1] in ("ss_dialog", "ss_adjust", "ss_cancel_object", "ss_filament", "ss_prompt"):
+    popups = ("ss_dialog", "ss_adjust", "ss_cancel_object", "ss_filament", "ss_prompt")
+    if screen._cur_panels and screen._cur_panels[-1] in popups:
         screen._menu_go_back()
 
 

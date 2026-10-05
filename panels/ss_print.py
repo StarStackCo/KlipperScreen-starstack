@@ -1,4 +1,4 @@
-# STARSTACK-ADDED: Print page: 6 files per page with thumbnails, sort button (FORK_CHANGES.md #12)
+# STARSTACK-ADDED: Print page: 6 files per page with thumbnails, sort button (FORK_CHANGES.md #23)
 # Sort cycles Newest first → Oldest first → Recently printed (user request D-030).
 import logging
 

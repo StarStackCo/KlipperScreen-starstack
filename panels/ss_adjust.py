@@ -1,4 +1,4 @@
-# STARSTACK-ADDED: value adjuster (nozzle / bed / fan / flow / pressure advance) (FORK_CHANGES.md #10)
+# STARSTACK-ADDED: value adjuster (nozzle / bed / fan / flow / pressure advance) (FORK_CHANGES.md #26)
 # Opened with ks_includes.starstack.adjust(). Values are clamped to [ss_min, ss_max]
 # here AND by Klipper / the StarStack macros on the printer.
 import gi
@@ -13,7 +13,8 @@ class Panel(ScreenPanel):
     def __init__(self, screen, title, ss_title="", ss_value=0, ss_min=0, ss_max=100, ss_unit="",
                  ss_steps=(-10, -1, 1, 10), ss_presets=(), ss_decimals=0, ss_apply=None, **kwargs):
         super().__init__(screen, title)
-        self.v, self.lo, self.hi, self.unit, self.dec, self.apply_cb = ss_value, ss_min, ss_max, ss_unit, ss_decimals, ss_apply
+        self.v, self.lo, self.hi = ss_value, ss_min, ss_max
+        self.unit, self.dec, self.apply_cb = ss_unit, ss_decimals, ss_apply
         for child in self.content.get_children():
             self.content.remove(child)
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, valign=Gtk.Align.CENTER, vexpand=True)

@@ -9,3 +9,6 @@ dist/
 build/
 venv/
 .venv/
+# STARSTACK-CHANGE #12 BEGIN: downloaded theme sources (tools/starstack/build_theme.py)
+tools/starstack/.cache/
+# STARSTACK-CHANGE #12 END

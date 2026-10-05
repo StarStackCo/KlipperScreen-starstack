@@ -1,0 +1,45 @@
+# STARSTACK-ADDED: StarStack checks (FORK_CHANGES.md #33)
+name: starstack-ci
+on:
+  push:
+    branches: [dev, starstack]
+  pull_request:
+    branches: [dev, starstack]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # check_markers diffs against the upstream base commit
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install linters
+        run: pip install pycodestyle==2.12.1 flake8==7.1.1
+      - name: Style (same rules as upstream KlipperScreen)
+        run: pycodestyle --ignore=E402,W503,W504 --max-line-length=120 --max-doc-length=120 screen.py ks_includes panels tools/starstack
+      - name: Python errors in StarStack files
+        run: flake8 --select=F --builtins=_ ks_includes/starstack*.py panels/ss_*.py tools/starstack/*.py
+      - name: STARSTACK-CHANGE markers balanced and documented
+        run: python tools/starstack/check_markers.py
+      - name: Cache theme sources
+        uses: actions/cache@v4
+        with:
+          path: tools/starstack/.cache
+          key: theme-sources-${{ hashFiles('tools/starstack/build_theme.py') }}
+      - name: Theme is up to date with tools/starstack
+        run: python tools/starstack/build_theme.py --check
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secret scan (verified + unknown findings fail the build)
+        uses: trufflesecurity/trufflehog@v3.82.13
+        with:
+          extra_args: --results=verified,unknown

@@ -1,4 +1,4 @@
-# STARSTACK-ADDED: Controls page: temperatures, fan, filament, movement (FORK_CHANGES.md #13)
+# STARSTACK-ADDED: Controls page: temperatures, fan, filament, movement (FORK_CHANGES.md #24)
 # Filament and movement are locked while printing (requirements v2.1 §6).
 import gi
 
@@ -37,8 +37,8 @@ class Panel(ScreenPanel):
         self.load_btn = ss.button(_("Load filament"), css="ss-btn ss-btn-card ss-btn-mid")
         self.unload_btn = ss.button(_("Unload filament"), css="ss-btn ss-btn-card ss-btn-mid")
         self.load_btn.connect("clicked", lambda w: ss._push(self._screen, "ss_filament", ss_mode="load"))
-        self.unload_btn.connect("clicked", lambda w: ss._push(self._screen, "ss_filament", ss_mode="unload",
-                                                             ss_material=self.loaded))
+        self.unload_btn.connect("clicked", lambda w: ss._push(
+            self._screen, "ss_filament", ss_mode="unload", ss_material=self.loaded))
         ss.grid_add(fil, [self.load_btn, self.unload_btn])
         page.add(fil)
 
@@ -72,8 +72,9 @@ class Panel(ScreenPanel):
                   ss_apply=lambda v: ss.gcode(self._screen, cmd.format(int(v))))
 
     def edit_fan(self, widget):
-        ss.adjust(self._screen, ss_title=_("Part fan"), ss_value=round((self._printer.get_stat("fan", "speed") or 0) * 100),
-                  ss_min=0, ss_max=100, ss_unit="%", ss_presets=[(_("Off"), 0), ("50%", 50), ("80%", 80), ("100%", 100)],
+        fan = round((self._printer.get_stat("fan", "speed") or 0) * 100)
+        ss.adjust(self._screen, ss_title=_("Part fan"), ss_value=fan, ss_min=0, ss_max=100, ss_unit="%",
+                  ss_presets=[(_("Off"), 0), ("50%", 50), ("80%", 80), ("100%", 100)],
                   ss_apply=lambda v: ss.gcode(self._screen, f"M106 S{int(round(v * 2.55))}"))
 
     def refresh(self):

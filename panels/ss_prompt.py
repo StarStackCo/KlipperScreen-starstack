@@ -1,5 +1,5 @@
 # STARSTACK-ADDED: Klipper macro prompts (action:prompt_*) shown inside the content area
-# instead of a full-screen dialog, so STOP stays reachable (FORK_CHANGES.md #9, #18).
+# instead of a full-screen dialog, so STOP stays reachable (FORK_CHANGES.md #29, hook #9).
 # Opened by the STARSTACK-CHANGE #9 hook in ks_includes/widgets/prompts.py.
 import gi
 
@@ -16,7 +16,8 @@ class Panel(ScreenPanel):
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, vexpand=True)
         card.get_style_context().add_class("ss-dialog")
         head = Gtk.Box(spacing=8)
-        head.pack_start(ss.label((ss_prompt.header or "").strip() or _("Printer message"), "ss-dialog-title", wrap=True),
+        header = (ss_prompt.header or "").strip() or _("Printer message")
+        head.pack_start(ss.label(header, "ss-dialog-title", wrap=True),
                         True, True, 0)
         close = ss.button("×", css="ss-btn ss-btn-outline ss-btn-close")
         close.set_hexpand(False)
@@ -41,7 +42,8 @@ class Panel(ScreenPanel):
             row = ss.grid(len(ss_prompt.buttons), spacing=8)
             btns = []
             for spec in ss_prompt.buttons:
-                css = "ss-btn ss-btn-danger ss-btn-lg" if "error" in spec["style"] else "ss-btn ss-btn-primary ss-btn-lg"
+                kind = "ss-btn-danger" if "error" in spec["style"] else "ss-btn-primary"
+                css = f"ss-btn {kind} ss-btn-lg"
                 b = ss.button(spec["name"], css=css)
                 b.connect("clicked", lambda w, g=spec["gcode"]: ss.gcode(self._screen, g))
                 btns.append(b)

@@ -1,4 +1,4 @@
-# STARSTACK-ADDED: in-content confirmation / info dialog (FORK_CHANGES.md #9)
+# STARSTACK-ADDED: in-content confirmation / info dialog (FORK_CHANGES.md #26)
 # Shown inside the content area so the rail (and STOP) stays reachable.
 # Open with ks_includes.starstack.confirm() / info(), never directly.
 import gi

@@ -1,4 +1,4 @@
-# STARSTACK-ADDED: "Printer stopped" screen for Klipper shutdown / error (FORK_CHANGES.md #19)
+# STARSTACK-ADDED: "Printer stopped" screen for Klipper shutdown / error (FORK_CHANGES.md #30, hook #8)
 # Replaces the stock splash for these two states only (STARSTACK-CHANGE #8 in screen.py).
 # Plain-language message + one confirmed "Restart printer" (FIRMWARE_RESTART); details on request.
 import gi
@@ -16,7 +16,8 @@ class Panel(ScreenPanel):
         if "webhooks request" in msg or "emergency" in msg.lower() or "M112" in msg:
             headline, plain = _("Printer stopped"), _("Emergency stop was pressed.")
         elif ss_kind == "error":
-            headline, plain = _("Printer error"), _("Klipper could not start. This is usually a config or connection problem.")
+            headline = _("Printer error")
+            plain = _("Klipper could not start. This is usually a config or connection problem.")
         else:
             headline, plain = _("Printer stopped"), _("Klipper shut down to protect the printer.")
         page = ss.page_box(spacing=8)

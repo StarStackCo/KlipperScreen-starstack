@@ -1,4 +1,4 @@
-# STARSTACK-ADDED: Home page: idle / printing / complete (FORK_CHANGES.md #11)
+# STARSTACK-ADDED: Home page: idle / printing / complete (FORK_CHANGES.md #22)
 # Design: klipper-ui design/phase2-directions/Prototype.dc.html (approved D-029/D-030)
 import logging
 import os
@@ -91,7 +91,8 @@ class Panel(ScreenPanel):
             box.add(self.thumb(fn, THUMB))
             box.add(ss.label(ss.pretty_name(fn), "ss-tile-title", lines=2))
             mat = meta.get("filament_type", "") or ""
-            box.add(ss.label(" · ".join(x for x in (mat.split(";")[0], ss.fmt_duration(meta.get("estimated_time"))) if x),
+            sub = (mat.split(";")[0], ss.fmt_duration(meta.get("estimated_time")))
+            box.add(ss.label(" · ".join(x for x in sub if x),
                              "ss-btn-sub", ellipsize=True))
             b.add(box)
             b.get_style_context().add_class("ss-btn")
@@ -216,14 +217,17 @@ class Panel(ScreenPanel):
                       ss_presets=presets, ss_apply=lambda v: ss.gcode(self._screen, cmd.format(int(v))))
         elif key == "fan":
             ss.adjust(self._screen, ss_title=_("Part fan"), ss_value=round((p.get_stat("fan", "speed") or 0) * 100),
-                      ss_min=0, ss_max=100, ss_unit="%", ss_presets=[(_("Off"), 0), ("50%", 50), ("80%", 80), ("100%", 100)],
+                      ss_min=0, ss_max=100, ss_unit="%",
+                      ss_presets=[(_("Off"), 0), ("50%", 50), ("80%", 80), ("100%", 100)],
                       ss_apply=lambda v: ss.gcode(self._screen, f"M106 S{int(round(v * 2.55))}"))
         elif key == "flow":
-            ss.adjust(self._screen, ss_title=_("Flow"), ss_value=round((p.get_stat("gcode_move", "extrude_factor") or 1) * 100),
+            flow = round((p.get_stat("gcode_move", "extrude_factor") or 1) * 100)
+            ss.adjust(self._screen, ss_title=_("Flow"), ss_value=flow,
                       ss_min=40, ss_max=120, ss_unit="%", ss_steps=(-5, -1, 1, 5),
                       ss_apply=lambda v: ss.gcode(self._screen, f"SET_FLOW PERCENT={int(v)}"))
         elif key == "pa":
-            ss.adjust(self._screen, ss_title=_("Pressure advance"), ss_value=p.get_stat("extruder", "pressure_advance") or 0,
+            pa = p.get_stat("extruder", "pressure_advance") or 0
+            ss.adjust(self._screen, ss_title=_("Pressure advance"), ss_value=pa,
                       ss_min=0, ss_max=1, ss_steps=(-0.01, -0.001, 0.001, 0.01), ss_decimals=3,
                       ss_apply=lambda v: ss.gcode(self._screen, f"SET_PRESSURE_ADVANCE ADVANCE={v:.4f}"))
 
@@ -390,7 +394,8 @@ class Panel(ScreenPanel):
         shown = self.speed_pending or sf
         for pct, b in self.speed_btns.items():
             ss.set_class(b, "ss-chip-active", pct == shown)
-        ss.set_button_text(self.pause_btn, (_("Reheating…") if self.resume_at else _("Resume")) if paused else _("Pause"))
+        resume_txt = _("Reheating…") if self.resume_at else _("Resume")
+        ss.set_button_text(self.pause_btn, resume_txt if paused else _("Pause"))
         ss.set_button_text(self.mid_btn, (_("Change filament") if color_pause else _("Load filament"))
                            if paused else _("Cancel object"))
         if self.tiles:
@@ -449,7 +454,8 @@ class Panel(ScreenPanel):
         if ss.is_printing(p):
             self.stack.set_visible_child_name("printing")
             self.refresh_printing()
-        elif state in ("complete", "error") and p.get_stat("print_stats", "filename") and self.done_key() != self.dismissed:
+        elif (state in ("complete", "error") and p.get_stat("print_stats", "filename")
+              and self.done_key() != self.dismissed):
             self.done_title.set_text(_("Print complete") if state == "complete" else _("Print failed"))
             self.done_name.set_text(f"{ss.pretty_name(p.get_stat('print_stats', 'filename'))} · "
                                     f"{ss.fmt_duration(p.get_stat('print_stats', 'print_duration'))}")

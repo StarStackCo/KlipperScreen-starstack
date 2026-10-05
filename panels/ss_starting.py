@@ -1,4 +1,4 @@
-# STARSTACK-ADDED: "Starting printer…" screen (FORK_CHANGES.md #23)
+# STARSTACK-ADDED: "Starting printer…" screen (FORK_CHANGES.md #31, hook #11)
 # Replaces the stock splash while Klipper starts, restarts or reconnects (STARSTACK-CHANGE #11 in
 # screen.py printer_initializing). Shutdown/error states use ss_stopped instead.
 # Same API as the stock splash: update_text(msg).

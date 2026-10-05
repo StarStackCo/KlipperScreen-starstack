@@ -1,4 +1,4 @@
-# STARSTACK-ADDED: Cancel object: bed map with positions + part list (FORK_CHANGES.md #15, D-022)
+# STARSTACK-ADDED: Cancel object: bed map with positions + part list (FORK_CHANGES.md #27, D-022)
 # Tap a part on the map or in the list, then confirm. Needs [exclude_object] + Orca "Label objects".
 # Like stock exclude.py: excluding the LAST remaining part cancels the print instead (Klipper quirk).
 import gi

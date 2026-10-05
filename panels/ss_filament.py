@@ -1,4 +1,4 @@
-# STARSTACK-ADDED: guided filament load / unload (FORK_CHANGES.md #16, D-030)
+# STARSTACK-ADDED: guided filament load / unload (FORK_CHANGES.md #28, D-030)
 # Uses the StarStack macros (klipper-ui macros/starstack_macros.cfg), which never block:
 #   LOAD_FILAMENT / UNLOAD_FILAMENT MATERIAL=X  → heats if cold, moves filament when hot
 #   PURGE_MORE, FILAMENT_DONE (heater off unless a print is paused)
@@ -140,7 +140,8 @@ class Panel(ScreenPanel):
             txt = (_("Loading") if load else _("Unloading")) + f" {self.mat}.\n" + \
                 _("Heating the nozzle first. This takes about a minute.")
         elif self.step == "ready":
-            txt = _("Nozzle is hot.") + "\n" + _("Push the filament into the extruder until you feel it grip, then tap Load.")
+            txt = _("Nozzle is hot.") + "\n" + \
+                _("Push the filament into the extruder until you feel it grip, then tap Load.")
             nxt = _("Load")
         elif self.step == "purge":
             txt = _("Filament is purging.") + "\n" + _("Is the plastic coming out clean and the right color?")

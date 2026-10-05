@@ -1,0 +1,50 @@
+# STARSTACK-ADDED: optional weekly upstream sync (FORK_CHANGES.md #33)
+# SETTING: repository variable UPSTREAM_SYNC_ENABLED = "true" turns the weekly run on, anything else turns it off.
+#          (Settings › Secrets and variables › Actions › Variables). Manual runs from the Actions tab always work.
+# What it does: mirrors upstream KlipperScreen master into our `master`, then opens (or refreshes) a pull
+# request `upstream-sync` → `dev`. GitHub shows any conflicts in the PR; they can only be inside
+# STARSTACK-CHANGE blocks. Nothing reaches printers until dev → starstack is merged after bench tests.
+name: starstack-upstream-sync
+on:
+  schedule:
+    - cron: "17 6 * * 1"        # Mondays 06:17 UTC
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  sync:
+    if: github.event_name == 'workflow_dispatch' || vars.UPSTREAM_SYNC_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/KlipperScreen/KlipperScreen.git
+          git fetch --tags upstream master
+      - name: Anything new?
+        id: check
+        run: |
+          if git merge-base --is-ancestor upstream/master HEAD; then
+            echo "new=false" >> "$GITHUB_OUTPUT"; echo "dev already contains upstream/master"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+            git log --oneline HEAD..upstream/master | head -50 > /tmp/commits.txt
+          fi
+      - name: Mirror upstream master and open PR into dev
+        if: steps.check.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git push origin upstream/master:refs/heads/master --force-with-lease
+          git push origin --tags
+          git push origin upstream/master:refs/heads/upstream-sync --force
+          BODY=$(printf 'New upstream KlipperScreen commits (newest first):\n\n```\n%s\n```\n\n**Before merging:** resolve conflicts (only inside `STARSTACK-CHANGE` blocks), run `python tools/starstack/check_markers.py`, bench-test from `dev`, then update `tools/starstack/UPSTREAM_BASE`.\n' "$(cat /tmp/commits.txt)")
+          if gh pr list --head upstream-sync --base dev --state open --json number --jq '.[0].number' | grep -q .; then
+            echo "PR already open; branch refreshed"
+          else
+            gh pr create --head upstream-sync --base dev --title "Upstream KlipperScreen sync $(date +%Y-%m-%d)" --body "$BODY"
+          fi

@@ -1,4 +1,4 @@
-# STARSTACK-ADDED: bench test helper (FORK_CHANGES.md #17). OFF unless ~/.starstack_dev exists.
+# STARSTACK-ADDED: bench test helper (FORK_CHANGES.md #21). OFF unless ~/.starstack_dev exists.
 #
 # Lets the klipper-ui bench scripts drive the UI remotely (the Pi has no xdotool/XTest):
 #   echo "click Load filament" > ~/.starstack_dev_cmd   press the first visible, sensitive button with that label

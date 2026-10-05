@@ -7,11 +7,34 @@ Design/plan docs live in the separate repo `StarStackCo/klipper-ui`.
 | Name | What |
 |---|---|
 | `upstream` remote | Official KlipperScreen (fetch only. Push is disabled) |
-| `origin` remote | `StarStackCo/KlipperScreen-starstack` (private) |
+| `origin` remote | `StarStackCo/KlipperScreen-starstack` (public) |
 | `master` | Mirror of upstream `master`. **Never commit here** |
-| `starstack` | Our branch = upstream + the changes listed below. **Default/deployed branch** |
+| `dev` | **Work happens here.** Bench-tested with `klipper-ui/scripts/ks-update.sh --branch dev` |
+| `starstack` | **Stable.** What printers install through Mainsail's update manager. Only updated by a pull request from `dev` after the bench checklist passes |
 
-**Base:** upstream `f580242e` (v0.4.6-26), the exact version on the printer Pi as of 2026-10-04.
+**Base:** upstream `f580242e` (v0.4.6-26), recorded in `tools/starstack/UPSTREAM_BASE`.
+
+## Release flow (dev → stable)
+1. Work on `dev`, push, and test on the bench Pi: `scripts/ks-update.sh --branch dev` (klipper-ui repo).
+2. Run the checklist in `klipper-ui/docs/test-checklist.md` and record the run.
+3. Open a pull request `dev` → `starstack`. CI must pass (style, markers, theme freshness).
+4. Merge. Printers see the update in Mainsail (Machine › Update Manager › KlipperScreen).
+
+## How to merge upstream KlipperScreen updates
+**Automatic (optional):** the `starstack-upstream-sync` workflow runs weekly and opens a pull request
+`upstream/master → dev` when there are new upstream commits. It's a setting: repository
+**Settings › Secrets and variables › Actions › Variables › `UPSTREAM_SYNC_ENABLED`** = `true` (on) or `false` (off).
+It can always be run by hand from the Actions tab.
+
+**By hand:**
+```bash
+git fetch upstream
+git checkout master && git merge --ff-only upstream/master && git push origin master
+git checkout dev && git merge master        # conflicts can only be inside STARSTACK-CHANGE blocks (#2-#12)
+python tools/starstack/check_markers.py     # every block still balanced and listed
+git push origin dev                          # then bench-test, then PR dev → starstack
+```
+After merging a new upstream base, update `tools/starstack/UPSTREAM_BASE` to the merged upstream commit.
 
 ## Rules for keeping merges easy
 1. Prefer **new files** (new theme folder, new panels) over editing upstream files.
@@ -28,29 +51,42 @@ Design/plan docs live in the separate repo `StarStackCo/klipper-ui`.
 
 When merging upstream: conflicts can only happen inside `STARSTACK-CHANGE` blocks. Re-apply the block's intent on top of the new upstream code and keep the same `#n`.
 
-## How to merge upstream updates
-```bash
-git fetch upstream
-git checkout master && git merge --ff-only upstream/master && git push origin master
-git checkout starstack && git merge master        # resolve conflicts using the table below
-# run docs/test-checklist.md (klipper-ui repo) on the bench before deploying
-git push origin starstack
-```
-
 ## Change list
-| # | Date | Type | Files | Upstream file modified? | Why |
-|---|---|---|---|---|---|
-| 1 | 2026-10-04 | Docs | `FORK_CHANGES.md` | No (new file) | This change log |
-| 2 | 2026-10-04 | Docs | `README.md` (top) | **Yes**, 3-line notice block | Points readers to this file |
-| 3 | 2026-10-04 | Theme | `styles/starstack/` (style.css, style.conf, images/, fonts/, LICENSES.md) | No (new folder) | StarStack brand theme. **Generated**: edit `klipperscreen/style.css` in `StarStackCo/klipper-ui` and run `scripts/build_ks_theme.py`, don't hand-edit. Icons: Bootstrap Icons 1.13.1 (MIT) where marked, otherwise material-dark artwork. Font: Public Sans 2.001 (OFL), installed to `~/.local/share/fonts` by `scripts/deploy-ks-bench.sh` |
-| 4–7 | 2026-10-04 | Rail | `panels/base_panel.py` (#4 init + import, #5 add_content, #6 process_update, #7 reload_icons) | **Yes**, marked blocks | StarStack rail (4 pages + STOP, red when active / gray when idle) via `ks_includes/starstack.py` |
-| 8 | 2026-10-04 | Start + stopped screens | `screen.py` (import, state_ready/printing/paused/error/shutdown, `_ss_stopped` helper) | **Yes**, marked blocks | `ss_home` replaces main_menu/job_status. `ss_stopped` replaces the splash for Klipper shutdown/error only (startup/connecting keep the stock splash) |
-| 9 | 2026-10-04 | Prompts | `ks_includes/widgets/prompts.py` (show/end) | **Yes**, marked blocks | Macro prompts in-content (`panels/ss_prompt.py`) so STOP is never covered |
-| 10–18 | 2026-10-04 | Screens | `ks_includes/starstack.py`, `ks_includes/starstack_devtools.py` (bench-only, off without ~/.starstack_dev), `panels/ss_home/ss_print/ss_controls/ss_settings/ss_dialog/ss_adjust/ss_cancel_object/ss_filament/ss_prompt.py` | No (new files) | Approved StarStack design (klipper-ui D-029/D-030) |
-| 19 | 2026-10-05 | Stopped screen | `panels/ss_stopped.py` | No (new file) | Plain "Printer stopped / Printer error" + confirmed Restart printer (FIRMWARE_RESTART), Details on request |
-| 20 | 2026-10-05 | Safety | `ks_includes/starstack.py` `StarStackRail._contain_content` | No (our file) | Page area wrapped in a scroller so no page can make the window taller than the screen and push STOP off-screen (found in testing: a prompt grew the window to 478 px) |
-| 21 | 2026-10-05 | Color changes | `panels/ss_home.py`, `ks_includes/starstack.py` (`scan_color_changes`) | No | Background scan of M600/M601/PAUSE + M73. Job line alternates "Color change in X" / "X left" every 4 s. "Change filament" flow when paused at a color change. Reheat-then-resume when the nozzle cooled while paused |
-| 10 | 2026-10-05 | Pop-ups | `screen.py` (notify_gcode_response) | **Yes**, marked blocks | Routine `echo:` messages are not shown as touchscreen pop-ups (still in the console). `!!` warnings/errors still pop up. Cold-extrude warning no longer jumps to the stock temperature panel |
-| 22 | 2026-10-05 | Rail/buttons | `ks_includes/starstack.py`, `panels/ss_home.py` | No | Rail = 5 equal slots (even spacing), STOP contents centered. Buttons no longer gray out while Klipper is busy. Speed presets highlight on tap and apply when Klipper is free |
-| 11 | 2026-10-05 | Starting screen | `screen.py` (printer_initializing, notify_power_changed guard) | **Yes**, marked blocks | StarStack "Starting printer… / Reconnecting…" replaces the stock splash while Klipper starts/restarts/reconnects |
-| 23 | 2026-10-05 | Starting screen | `panels/ss_starting.py`, `styles/starstack/images/starstack-logo.png` | No (new files) | logo2 on white plate, spinner, plain status, Details, confirmed Restart Klipper / Retry connection |
+Numbers **2–12** are edits inside upstream KlipperScreen files: the code carries
+`STARSTACK-CHANGE #n BEGIN/END` markers with the same number. Numbers **20+** are files we added
+(each starts with a `STARSTACK-ADDED` note). `python tools/starstack/check_markers.py` verifies this.
+
+### Edits inside upstream files (merge conflicts can only happen here)
+| # | Date | File | What and why |
+|---|---|---|---|
+| 2 | 2026-10-04 | `README.md` (top) | Fork notice pointing to this file |
+| 4 | 2026-10-04 | `panels/base_panel.py` (import + end of `__init__`) | Install the StarStack rail when the theme is "starstack" |
+| 5 | 2026-10-04 | `panels/base_panel.py` `add_content` | Rail manages page highlight and STOP. Skip stock action-bar logic |
+| 6 | 2026-10-04 | `panels/base_panel.py` `process_update` | Keep STOP color in sync with printer activity |
+| 7 | 2026-10-04 | `panels/base_panel.py` `reload_icons` | Rail icons are built by the rail (STOP has no plain image) |
+| 8 | 2026-10-04 | `screen.py` (import, `state_ready/printing/paused/error/shutdown`, `_ss_stopped`) | `ss_home` replaces main_menu/job_status. `ss_stopped` replaces the splash for shutdown/error |
+| 9 | 2026-10-05 | `ks_includes/widgets/prompts.py` `show/end` | Macro prompts shown in-page (`ss_prompt`) so STOP is never covered |
+| 10 | 2026-10-05 | `screen.py` `notify_gcode_response` | Routine `echo:` messages are not pop-ups (still in the console). Cold-extrude warning doesn't jump to the stock panel |
+| 11 | 2026-10-05 | `screen.py` `printer_initializing`, power-update guard | `ss_starting` replaces the stock splash while Klipper starts/restarts/reconnects |
+| 12 | 2026-10-05 | `.gitignore` | Ignore `tools/starstack/.cache/` (downloaded theme sources) |
+
+### Files we added (never conflict)
+| # | Date | Files | What |
+|---|---|---|---|
+| 1 | 2026-10-04 | `FORK_CHANGES.md` | This file |
+| 3 | 2026-10-04 | `styles/starstack/` | Theme. **Generated** by `tools/starstack/build_theme.py`, never hand-edit |
+| 20 | 2026-10-04 | `ks_includes/starstack.py` | Shared helpers, materials, Advanced-mode store, in-page dialogs, **rail + STOP**, content guard (no page can push STOP off-screen), color-change scanner |
+| 21 | 2026-10-04 | `ks_includes/starstack_devtools.py` | Bench test helper. **Off** unless `~/.starstack_dev` exists |
+| 22 | 2026-10-04 | `panels/ss_home.py` | Home: idle / printing / paused / done, color-change countdown, reheat-then-resume |
+| 23 | 2026-10-04 | `panels/ss_print.py` | File grid, sort, pager |
+| 24 | 2026-10-04 | `panels/ss_controls.py` | Temps, fan, filament (remembered), movement (locked while printing) |
+| 25 | 2026-10-04 | `panels/ss_settings.py` | Settings + Advanced mode |
+| 26 | 2026-10-04 | `panels/ss_dialog.py`, `panels/ss_adjust.py` | In-page confirmations and value adjuster |
+| 27 | 2026-10-04 | `panels/ss_cancel_object.py` | Bed map + part list |
+| 28 | 2026-10-04 | `panels/ss_filament.py` | Guided load / unload / change filament |
+| 29 | 2026-10-05 | `panels/ss_prompt.py` | In-page macro prompts (hook #9) |
+| 30 | 2026-10-05 | `panels/ss_stopped.py` | "Printer stopped / error" (hook #8) |
+| 31 | 2026-10-05 | `panels/ss_starting.py` | "Starting printer…" (hook #11) |
+| 32 | 2026-10-05 | `tools/starstack/` | Theme source (`style.css`, `brand/`), `build_theme.py` (pinned downloads), `check_markers.py`, `UPSTREAM_BASE` |
+| 33 | 2026-10-05 | `.github/workflows/starstack-ci.yml`, `starstack-upstream-sync.yml` | CI checks + optional weekly upstream merge PR |
+| 34 | 2026-10-05 | `TRADEMARKS.md` | StarStack name/logo are not covered by the AGPL license |
