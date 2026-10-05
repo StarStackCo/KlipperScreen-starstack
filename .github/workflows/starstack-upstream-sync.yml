@@ -2,8 +2,8 @@
 # SETTING: repository variable UPSTREAM_SYNC_ENABLED = "true" turns the weekly run on, anything else turns it off.
 #          (Settings › Secrets and variables › Actions › Variables). Manual runs from the Actions tab always work.
 # What it does: mirrors upstream KlipperScreen master into our `master`, pushes it to branch `upstream-sync`, then
-# opens a pull request into `dev` (or, because the org blocks Actions from opening PRs, an issue with a
-# one-click link). Conflicts can only be inside STARSTACK-CHANGE blocks. Nothing reaches printers until
+# opens a pull request into `dev`. The org blocks workflows from opening PRs/issues, so instead the run
+# shows a one-click link and is marked FAILED on purpose (GitHub emails failed runs): red = updates waiting. Conflicts can only be inside STARSTACK-CHANGE blocks. Nothing reaches printers until
 # dev → starstack is merged after bench tests.
 name: starstack-upstream-sync
 on:
@@ -13,7 +13,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  issues: write
 jobs:
   sync:
     if: github.event_name == 'workflow_dispatch' || vars.UPSTREAM_SYNC_ENABLED == 'true'
@@ -51,9 +50,15 @@ jobs:
           elif gh pr create --head upstream-sync --base dev --title "Upstream KlipperScreen sync $(date +%Y-%m-%d)" --body "$BODY"; then
             echo "PR opened"
           else
-            # The StarStackCo org doesn't let Actions open PRs: open (or update) an issue with a one-click link instead.
-            TITLE="Upstream KlipperScreen update available"
-            ISSUE=$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number')
-            TEXT=$(printf '%s\n\n**Create the pull request:** %s\n' "$BODY" "$COMPARE")
-            if [ -n "$ISSUE" ]; then gh issue comment "$ISSUE" --body "$TEXT"; else gh issue create --title "$TITLE" --body "$TEXT"; fi
+            # The StarStackCo org doesn't let workflows open PRs or issues. Leave a summary with a one-click
+            # link and fail the run on purpose: GitHub emails a failed run, so red = "updates waiting".
+            {
+              echo "## Upstream KlipperScreen update available"
+              echo ""
+              echo "$BODY"
+              echo ""
+              echo "**Create the pull request:** $COMPARE"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Upstream updates waiting::Open $COMPARE to create the pull request into dev"
+            exit 1
           fi

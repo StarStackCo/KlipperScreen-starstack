@@ -21,8 +21,10 @@ Design/plan docs live in the separate repo `StarStackCo/klipper-ui`.
 4. Merge. Printers see the update in Mainsail (Machine › Update Manager › KlipperScreen).
 
 ## How to merge upstream KlipperScreen updates
-**Automatic (optional):** the `starstack-upstream-sync` workflow runs weekly and opens a pull request
-`upstream/master → dev` when there are new upstream commits. It's a setting: repository
+**Automatic (optional):** the `starstack-upstream-sync` workflow runs weekly. When upstream has new commits it
+pushes them to branch `upstream-sync` and **fails on purpose** with a one-click "create pull request" link in the
+run summary (the StarStackCo org doesn't let workflows open PRs or issues; GitHub emails failed runs).
+**Red run = updates waiting, green = nothing new.** It's a setting: repository
 **Settings › Secrets and variables › Actions › Variables › `UPSTREAM_SYNC_ENABLED`** = `true` (on) or `false` (off).
 It can always be run by hand from the Actions tab.
 
