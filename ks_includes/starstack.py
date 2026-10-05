@@ -129,10 +129,36 @@ def thumbnail(panel, filename, size, image):
             image.set_from_pixbuf(pixbuf)
         return False
 
+    files = panel._files
+    if not files.has_thumbnail(filename):
+        if files.file_metadata_exists(filename):
+            return  # metadata loaded, the file just has no thumbnail: keep the placeholder
+        # Upstream fetches file metadata (thumbnail paths) asynchronously: wait for it to arrive
+        _thumb_waiting.setdefault(filename, []).append((panel, size, image))
+        if _thumb_metadata_arrived not in files.callbacks:  # callbacks are cleared on reconnect
+            files.add_callback(_thumb_metadata_arrived)
+        if filename not in files.files:
+            files.request_metadata(filename)
+        return
     try:
         panel.load_image_async(filename, size, size, callback=done)
     except Exception as e:
         logging.debug(f"StarStack: thumbnail failed for {filename}: {e}")
+
+
+_thumb_waiting = {}  # filename -> [(panel, size, Gtk.Image)] waiting for metadata
+
+
+def _thumb_metadata_arrived(action, data):
+    if action != "modify_file":
+        return
+    filename = (data.get("item") or {}).get("path")
+    waiting = _thumb_waiting.pop(filename, None)
+    if not waiting or not waiting[0][0]._files.has_thumbnail(filename):
+        return  # no thumbnail in this file: keep the placeholder icon
+    for panel, size, image in waiting:
+        if image.get_parent() is not None:  # page still showing this tile
+            thumbnail(panel, filename, size, image)
 
 
 def pretty_name(filename):
