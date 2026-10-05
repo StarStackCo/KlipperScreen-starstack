@@ -86,7 +86,10 @@ MAP = {
     "warning": ("exclamation-triangle-fill", HOT),
     "notifications": ("bell", WHITE),
     "notifications_active": ("bell-fill", SKY),
-    "notification_important": ("bell-fill", HOT),
+    "notification_important": ("bell-fill", HOT),  # name used by upstream menu.py
+    "notifications_important": ("bell-fill", HOT),  # name used by upstream base_panel.py
+    "edit": ("pencil", WHITE),
+    "archived": ("archive", WHITE),
     "speed+": ("speedometer2", WHITE),
     "speed-": ("speedometer", WHITE),
     "motor-off": ("slash-circle", WHITE),
