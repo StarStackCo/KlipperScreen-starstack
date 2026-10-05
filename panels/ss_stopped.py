@@ -1,12 +1,14 @@
-# STARSTACK-ADDED: "Printer stopped" screen for Klipper shutdown / error (FORK_CHANGES.md #30, hook #8)
+# STARSTACK-ADDED: "Printer stopped" screen for Klipper shutdown / error
+# (FORK_CHANGES.md #30, hook #8)
 # Replaces the stock splash for these two states only (STARSTACK-CHANGE #8 in screen.py).
 # Plain-language message + one confirmed "Restart printer" (FIRMWARE_RESTART); details on request.
 import gi
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
-from ks_includes.screen_panel import ScreenPanel
+
 from ks_includes import starstack as ss
+from ks_includes.screen_panel import ScreenPanel
 
 
 class Panel(ScreenPanel):
@@ -27,8 +29,13 @@ class Panel(ScreenPanel):
         head.add(ss.label(headline, "ss-stopped-title"))
         page.add(head)
         page.add(ss.label(plain, "ss-dialog-body ss-stopped-body", wrap=True))
-        page.add(ss.label(_("Heaters and motors are off. Check the printer is safe before restarting."),
-                          "ss-muted", wrap=True))
+        page.add(
+            ss.label(
+                _("Heaters and motors are off. Check the printer is safe before restarting."),
+                "ss-muted",
+                wrap=True,
+            )
+        )
         self.details = ss.label(msg.strip(), "ss-btn-sub", wrap=True)
         scroll = self._gtk.ScrolledWindow(steppers=False)
         scroll.set_vexpand(True)
@@ -49,6 +56,10 @@ class Panel(ScreenPanel):
         self.content.show_all()
 
     def ask_restart(self, *args):
-        ss.confirm(self._screen, _("Restart the printer?"),
-                   _("Klipper restarts and the printer is ready again in about 10 seconds."),
-                   _("Restart"), self._screen._ws.klippy.restart_firmware)
+        ss.confirm(
+            self._screen,
+            _("Restart the printer?"),
+            _("Klipper restarts and the printer is ready again in about 10 seconds."),
+            _("Restart"),
+            self._screen._ws.api.restart_firmware,
+        )

@@ -9,8 +9,9 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk
-from ks_includes.screen_panel import ScreenPanel
+
 from ks_includes import starstack as ss
+from ks_includes.screen_panel import ScreenPanel
 
 THUMB = 56
 
@@ -19,11 +20,13 @@ class Panel(ScreenPanel):
     def __init__(self, screen, title, **kwargs):
         super().__init__(screen, title)
         self.recent_cache = (0, [])
+        self.history_jobs = []
+        self.history_pending = False
         self.dismissed = None
-        self.resume_at = None                 # target °C while reheating before resume
-        self.speed_pending = None             # tapped speed preset not yet applied by Klipper
+        self.resume_at = None  # target °C while reheating before resume
+        self.speed_pending = None  # tapped speed preset not yet applied by Klipper
         self.cc = {"changes": [], "m73": []}  # color changes in the current file
-        self.phase = False                    # alternates "color change in" / "time left"
+        self.phase = False  # alternates "color change in" / "time left"
         self.ticker = None
         self.stack = Gtk.Stack(hexpand=True, vexpand=True)
         self.stack.add_named(self.build_idle(), "idle")
@@ -45,8 +48,13 @@ class Panel(ScreenPanel):
             b = ss.button(name, f"{noz}° / {bed}°", css="ss-btn ss-btn-card ss-btn-tall")
             b.connect("clicked", lambda w, n=name: ss.gcode(self._screen, f"PREHEAT_{n}", w))
             btns.append(b)
-        cool = ss.button(_("Cool down"), css="ss-btn ss-btn-outline ss-btn-tall ss-text-sky",
-                         image="cool-down", gtk=self._gtk, img_size=18)
+        cool = ss.button(
+            _("Cool down"),
+            css="ss-btn ss-btn-outline ss-btn-tall ss-text-sky",
+            image="cool-down",
+            gtk=self._gtk,
+            img_size=18,
+        )
         cool.connect("clicked", lambda w: ss.gcode(self._screen, "COOL_DOWN", w))
         btns.append(cool)
         ss.grid_add(row, btns)
@@ -57,27 +65,35 @@ class Panel(ScreenPanel):
         stamp, jobs = self.recent_cache
         if time.time() - stamp < 30 and jobs:
             return jobs
+        if not self.history_pending:  # async: refresh_idle runs again when the history arrives
+            self.history_pending = True
+            ss.history(self._screen, 30, self._history_done)
         jobs, seen = [], set()
-        try:
-            res = self._screen.apiclient.send_request("server/history/list?limit=30&order=desc")
-            for job in res.get("jobs", []):
-                fn = job.get("filename")
-                if not fn or fn in seen or not job.get("exists", True) or fn.startswith("ss_bench"):
-                    continue
-                seen.add(fn)
-                jobs.append(job)
-                if len(jobs) == 3:
-                    break
-        except Exception as e:
-            logging.debug(f"StarStack: history failed: {e}")
-        if len(jobs) < 3:   # fall back to newest files
-            files = sorted(self._files.files.values(), key=lambda f: f.get("modified", 0), reverse=True)
+        for job in self.history_jobs:
+            fn = job.get("filename")
+            if not fn or fn in seen or not job.get("exists", True) or fn.startswith("ss_bench"):
+                continue
+            seen.add(fn)
+            jobs.append(job)
+            if len(jobs) == 3:
+                break
+        if len(jobs) < 3:  # fall back to newest files
+            files = sorted(
+                self._files.files.values(), key=lambda f: f.get("modified", 0), reverse=True
+            )
             for f in files:
                 if f["path"] not in seen and len(jobs) < 3:
                     seen.add(f["path"])
                     jobs.append({"filename": f["path"], "metadata": f})
         self.recent_cache = (time.time(), jobs)
         return jobs
+
+    def _history_done(self, jobs):
+        self.history_pending = False
+        self.history_jobs = jobs or []
+        self.recent_cache = (0, [])
+        if self.stack.get_visible_child_name() == "idle":
+            self.refresh_idle()
 
     def refresh_idle(self):
         for child in self.recent_grid.get_children():
@@ -92,8 +108,7 @@ class Panel(ScreenPanel):
             box.add(ss.label(ss.pretty_name(fn), "ss-tile-title", lines=2))
             mat = meta.get("filament_type", "") or ""
             sub = (mat.split(";")[0], ss.fmt_duration(meta.get("estimated_time")))
-            box.add(ss.label(" · ".join(x for x in sub if x),
-                             "ss-btn-sub", ellipsize=True))
+            box.add(ss.label(" · ".join(x for x in sub if x), "ss-btn-sub", ellipsize=True))
             b.add(box)
             b.get_style_context().add_class("ss-btn")
             b.get_style_context().add_class("ss-tile")
@@ -102,21 +117,19 @@ class Panel(ScreenPanel):
             b.connect("clicked", lambda w, f=fn: ss.bed_clear_then_print(self._screen, f))
             tiles.append(b)
         if not tiles:
-            tiles.append(ss.label(_("No prints yet. Send one from OrcaSlicer."), "ss-muted", wrap=True))
+            tiles.append(
+                ss.label(_("No prints yet. Send one from OrcaSlicer."), "ss-muted", wrap=True)
+            )
         ss.grid_add(self.recent_grid, tiles)
         self.recent_grid.show_all()
 
     def thumb(self, filename, size):
         frame = Gtk.Box(halign=Gtk.Align.FILL)
         frame.get_style_context().add_class("ss-thumb")
-        pix = None
-        try:
-            pix = self.get_file_image(filename, size, size)
-        except Exception:
-            pass
-        img = Gtk.Image.new_from_pixbuf(pix) if pix else self._gtk.Image("file", size * 0.6, size * 0.6)
+        img = self._gtk.Image("file", size * 0.6, size * 0.6)
         img.set_size_request(-1, size)
         frame.pack_start(img, True, True, 0)
+        ss.thumbnail(self, filename, size, img)
         return frame
 
     # ------------------------------------------------------------ printing
@@ -185,7 +198,13 @@ class Panel(ScreenPanel):
         g = ss.grid(len(keys))
         self.tiles = {}
         for k in keys:
-            name = {"nozzle": _("Nozzle"), "bed": _("Bed"), "fan": _("Fan"), "flow": _("Flow"), "pa": "PA"}[k]
+            name = {
+                "nozzle": _("Nozzle"),
+                "bed": _("Bed"),
+                "fan": _("Fan"),
+                "flow": _("Flow"),
+                "pa": "PA",
+            }[k]
             b = Gtk.Button(can_focus=False, hexpand=True)
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0, valign=Gtk.Align.CENTER)
             box.add(ss.label(name, "ss-btn-sub", xalign=0.5))
@@ -212,49 +231,76 @@ class Panel(ScreenPanel):
             idx = 0 if key == "nozzle" else 1
             presets = [(_("Off"), 0)] + [(m, t[idx]) for m, t in ss.MATERIALS.items()]
             cmd = "M104 S{}" if key == "nozzle" else "M140 S{}"
-            ss.adjust(self._screen, ss_title=_("Nozzle target") if key == "nozzle" else _("Bed target"),
-                      ss_value=p.get_stat(dev, "target") or 0, ss_min=0, ss_max=mx, ss_unit="°C",
-                      ss_presets=presets, ss_apply=lambda v: ss.gcode(self._screen, cmd.format(int(v))))
+            ss.adjust(
+                self._screen,
+                ss_title=_("Nozzle target") if key == "nozzle" else _("Bed target"),
+                ss_value=p.get_stat(dev, "target") or 0,
+                ss_min=0,
+                ss_max=mx,
+                ss_unit="°C",
+                ss_presets=presets,
+                ss_apply=lambda v: ss.gcode(self._screen, cmd.format(int(v))),
+            )
         elif key == "fan":
-            ss.adjust(self._screen, ss_title=_("Part fan"), ss_value=round((p.get_stat("fan", "speed") or 0) * 100),
-                      ss_min=0, ss_max=100, ss_unit="%",
-                      ss_presets=[(_("Off"), 0), ("50%", 50), ("80%", 80), ("100%", 100)],
-                      ss_apply=lambda v: ss.gcode(self._screen, f"M106 S{int(round(v * 2.55))}"))
+            ss.adjust(
+                self._screen,
+                ss_title=_("Part fan"),
+                ss_value=round((p.get_stat("fan", "speed") or 0) * 100),
+                ss_min=0,
+                ss_max=100,
+                ss_unit="%",
+                ss_presets=[(_("Off"), 0), ("50%", 50), ("80%", 80), ("100%", 100)],
+                ss_apply=lambda v: ss.gcode(self._screen, f"M106 S{int(round(v * 2.55))}"),
+            )
         elif key == "flow":
             flow = round((p.get_stat("gcode_move", "extrude_factor") or 1) * 100)
-            ss.adjust(self._screen, ss_title=_("Flow"), ss_value=flow,
-                      ss_min=40, ss_max=120, ss_unit="%", ss_steps=(-5, -1, 1, 5),
-                      ss_apply=lambda v: ss.gcode(self._screen, f"SET_FLOW PERCENT={int(v)}"))
+            ss.adjust(
+                self._screen,
+                ss_title=_("Flow"),
+                ss_value=flow,
+                ss_min=40,
+                ss_max=120,
+                ss_unit="%",
+                ss_steps=(-5, -1, 1, 5),
+                ss_apply=lambda v: ss.gcode(self._screen, f"SET_FLOW PERCENT={int(v)}"),
+            )
         elif key == "pa":
             pa = p.get_stat("extruder", "pressure_advance") or 0
-            ss.adjust(self._screen, ss_title=_("Pressure advance"), ss_value=pa,
-                      ss_min=0, ss_max=1, ss_steps=(-0.01, -0.001, 0.001, 0.01), ss_decimals=3,
-                      ss_apply=lambda v: ss.gcode(self._screen, f"SET_PRESSURE_ADVANCE ADVANCE={v:.4f}"))
+            ss.adjust(
+                self._screen,
+                ss_title=_("Pressure advance"),
+                ss_value=pa,
+                ss_min=0,
+                ss_max=1,
+                ss_steps=(-0.01, -0.001, 0.001, 0.01),
+                ss_decimals=3,
+                ss_apply=lambda v: ss.gcode(self._screen, f"SET_PRESSURE_ADVANCE ADVANCE={v:.4f}"),
+            )
 
     def toggle_pause(self, widget):
         p = self._printer
         if p.state != "paused":
             self.resume_at = None
-            self._screen._ws.klippy.print_pause()
+            self._screen._ws.api.print_pause()
             return
-        if self.resume_at:                      # tapped again while reheating: stop waiting
+        if self.resume_at:  # tapped again while reheating: stop waiting
             self.resume_at = None
             self.update_view()
             return
         # Nozzle cooled while paused (idle timeout / filament change)? Reheat first, then resume,
         # instead of Mainsail's RESUME aborting with "not hot enough".
-        temp = 0
-        try:
-            res = self._screen.apiclient.send_request("printer/objects/query?gcode_macro%20RESUME")
-            temp = float(res["status"]["gcode_macro RESUME"]["last_extruder_temp"].get("temp", 0) or 0)
-        except Exception as e:
-            logging.debug(f"StarStack: RESUME temp query failed: {e}")
-        if temp > 0 and (p.get_stat("extruder", "temperature") or 0) < temp - 5:
-            self.resume_at = temp
-            ss.gcode(self._screen, f"M104 S{temp:.0f}")
-            self.update_view()
-        else:
-            self._screen._ws.klippy.print_resume()
+
+        def got(status):
+            last = status.get("gcode_macro RESUME", {}).get("last_extruder_temp") or {}
+            temp = float(last.get("temp", 0) or 0)
+            if temp > 0 and (p.get_stat("extruder", "temperature") or 0) < temp - 5:
+                self.resume_at = temp
+                ss.gcode(self._screen, f"M104 S{temp:.0f}")
+                self.update_view()
+            else:
+                self._screen._ws.api.print_resume()
+
+        ss.query_objects(self._screen, {"gcode_macro RESUME": ["last_extruder_temp"]}, got)
 
     def check_resume(self):
         p = self._printer
@@ -264,7 +310,7 @@ class Panel(ScreenPanel):
             self.resume_at = None
         elif (p.get_stat("extruder", "temperature") or 0) >= self.resume_at - 3:
             self.resume_at = None
-            self._screen._ws.klippy.print_resume()
+            self._screen._ws.api.print_resume()
 
     # ---- color changes (M600) in the current file
     def start_color_scan(self, fn):
@@ -279,6 +325,7 @@ class Panel(ScreenPanel):
         def work():
             result = ss.scan_color_changes(path, start, end)
             GLib.idle_add(self._color_scan_done, fn, result)
+
         threading.Thread(target=work, daemon=True).start()
 
     def _color_scan_done(self, fn, result):
@@ -315,7 +362,10 @@ class Panel(ScreenPanel):
 
     def runout(self):
         for s in self._printer.get_filament_sensors():
-            if self._printer.get_stat(s, "enabled") and self._printer.get_stat(s, "filament_detected") is False:
+            if (
+                self._printer.get_stat(s, "enabled")
+                and self._printer.get_stat(s, "filament_detected") is False
+            ):
                 return True
         return False
 
@@ -327,15 +377,25 @@ class Panel(ScreenPanel):
         else:
             objects = self._printer.get_stat("exclude_object", "objects") or []
             if not objects:
-                ss.info(self._screen, _("No objects to cancel"),
-                        _("This file has no object labels. Turn on \"Label objects\" in OrcaSlicer."))
+                ss.info(
+                    self._screen,
+                    _("No objects to cancel"),
+                    _('This file has no object labels. Turn on "Label objects" in OrcaSlicer.'),
+                )
                 return
             ss._push(self._screen, "ss_cancel_object")
 
     def ask_cancel(self, widget):
         name = ss.pretty_name(self._printer.get_stat("print_stats", "filename"))
-        ss.confirm(self._screen, _("Cancel this print?"), f"{name} " + _("will stop and can't be resumed."),
-                   _("Cancel print"), self._screen._ws.klippy.print_cancel, kind="danger", no_label=_("Keep printing"))
+        ss.confirm(
+            self._screen,
+            _("Cancel this print?"),
+            f"{name} " + _("will stop and can't be resumed."),
+            _("Cancel print"),
+            self._screen._ws.api.print_cancel,
+            kind="danger",
+            no_label=_("Keep printing"),
+        )
 
     def file_progress(self, fn):
         """Progress through the G-code body (like Mainsail): ignores the thumbnail/header bytes."""
@@ -365,18 +425,27 @@ class Panel(ScreenPanel):
         paused = p.state == "paused"
         pos = p.get_stat("virtual_sdcard", "file_position") or 0
         progress = self.file_progress(fn)
-        dur = p.get_stat("print_stats", "print_duration") or p.get_stat("print_stats", "total_duration") or 0
+        dur = (
+            p.get_stat("print_stats", "print_duration")
+            or p.get_stat("print_stats", "total_duration")
+            or 0
+        )
         info = p.get_stat("print_stats", "info") or {}
         color_pause = paused and self.color_change_pause(pos)
         parts = []
         if self.resume_at:
             parts.append(_("Reheating to") + f" {self.resume_at:.0f}°, " + _("then resuming"))
         elif paused:
-            parts.append(_("Color change") if color_pause else
-                         _("Filament ran out") if self.runout() else _("Paused"))
+            parts.append(
+                _("Color change")
+                if color_pause
+                else _("Filament ran out")
+                if self.runout()
+                else _("Paused")
+            )
         if info.get("total_layer"):
             parts.append(_("Layer") + f" {info.get('current_layer') or 0} / {info['total_layer']}")
-        # Alternate every 4 s between "Color change in X" and "X left" when the file has color changes
+        # Alternate every 4 s between "Color change in X" and "X left" (files with color changes)
         eta = None if paused else self.color_change_eta(fn, pos, dur)
         if eta is not None and self.phase:
             parts.append(_("Color change in") + " " + ss.fmt_duration(eta))
@@ -390,21 +459,37 @@ class Panel(ScreenPanel):
         ss.set_class(self.progress, "ss-progress-paused", paused)
         sf = round((p.get_stat("gcode_move", "speed_factor") or 1) * 100)
         if self.speed_pending == sf:
-            self.speed_pending = None             # Klipper has applied the tapped preset
+            self.speed_pending = None  # Klipper has applied the tapped preset
         shown = self.speed_pending or sf
         for pct, b in self.speed_btns.items():
             ss.set_class(b, "ss-chip-active", pct == shown)
         resume_txt = _("Reheating…") if self.resume_at else _("Resume")
         ss.set_button_text(self.pause_btn, resume_txt if paused else _("Pause"))
-        ss.set_button_text(self.mid_btn, (_("Change filament") if color_pause else _("Load filament"))
-                           if paused else _("Cancel object"))
+        ss.set_button_text(
+            self.mid_btn,
+            (_("Change filament") if color_pause else _("Load filament"))
+            if paused
+            else _("Cancel object"),
+        )
         if self.tiles:
-            e_t, e_g = p.get_stat("extruder", "temperature") or 0, p.get_stat("extruder", "target") or 0
-            b_t, b_g = p.get_stat("heater_bed", "temperature") or 0, p.get_stat("heater_bed", "target") or 0
-            vals = {"nozzle": (f"{e_t:.0f}°", f"/ {e_g:.0f}°"), "bed": (f"{b_t:.0f}°", f"/ {b_g:.0f}°"),
-                    "fan": (f"{(p.get_stat('fan', 'speed') or 0) * 100:.0f}%", _("part")),
-                    "flow": (f"{(p.get_stat('gcode_move', 'extrude_factor') or 1) * 100:.0f}%", "40–120"),
-                    "pa": (f"{p.get_stat('extruder', 'pressure_advance') or 0:.3f}", _("advanced"))}
+            e_t, e_g = (
+                p.get_stat("extruder", "temperature") or 0,
+                p.get_stat("extruder", "target") or 0,
+            )
+            b_t, b_g = (
+                p.get_stat("heater_bed", "temperature") or 0,
+                p.get_stat("heater_bed", "target") or 0,
+            )
+            vals = {
+                "nozzle": (f"{e_t:.0f}°", f"/ {e_g:.0f}°"),
+                "bed": (f"{b_t:.0f}°", f"/ {b_g:.0f}°"),
+                "fan": (f"{(p.get_stat('fan', 'speed') or 0) * 100:.0f}%", _("part")),
+                "flow": (
+                    f"{(p.get_stat('gcode_move', 'extrude_factor') or 1) * 100:.0f}%",
+                    "40–120",
+                ),
+                "pa": (f"{p.get_stat('extruder', 'pressure_advance') or 0:.3f}", _("advanced")),
+            }
             for k, (b, val, sub) in self.tiles.items():
                 val.set_text(vals[k][0])
                 sub.set_text(vals[k][1])
@@ -414,24 +499,36 @@ class Panel(ScreenPanel):
     # ------------------------------------------------------------ done
     def build_done(self):
         page = ss.page_box()
-        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, vexpand=True, valign=Gtk.Align.FILL)
+        card = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=6, vexpand=True, valign=Gtk.Align.FILL
+        )
         card.get_style_context().add_class("ss-card")
-        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, valign=Gtk.Align.CENTER, vexpand=True)
+        inner = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=6, valign=Gtk.Align.CENTER, vexpand=True
+        )
         self.done_icon = self._gtk.Image("complete", 44, 44)
         self.done_title = ss.label(_("Print complete"), "ss-done-title", xalign=0.5)
         self.done_name = ss.label("", "ss-muted", xalign=0.5, ellipsize=True)
         inner.add(self.done_icon)
         inner.add(self.done_title)
         inner.add(self.done_name)
-        inner.add(ss.label(_("Wait for the bed to cool before removing the print."), "ss-btn-sub", xalign=0.5))
+        inner.add(
+            ss.label(
+                _("Wait for the bed to cool before removing the print."), "ss-btn-sub", xalign=0.5
+            )
+        )
         card.add(inner)
         page.pack_start(card, True, True, 0)
         row = ss.grid(2, spacing=8)
         done = ss.button(_("Done"), css="ss-btn ss-btn-outline ss-btn-action")
         done.connect("clicked", self.dismiss)
         again = ss.button(_("Print again"), css="ss-btn ss-btn-primary ss-btn-action")
-        again.connect("clicked", lambda w: ss.bed_clear_then_print(
-            self._screen, self._printer.get_stat("print_stats", "filename")))
+        again.connect(
+            "clicked",
+            lambda w: ss.bed_clear_then_print(
+                self._screen, self._printer.get_stat("print_stats", "filename")
+            ),
+        )
         ss.grid_add(row, [done, again])
         page.add(row)
         return page
@@ -454,11 +551,18 @@ class Panel(ScreenPanel):
         if ss.is_printing(p):
             self.stack.set_visible_child_name("printing")
             self.refresh_printing()
-        elif (state in ("complete", "error") and p.get_stat("print_stats", "filename")
-              and self.done_key() != self.dismissed):
-            self.done_title.set_text(_("Print complete") if state == "complete" else _("Print failed"))
-            self.done_name.set_text(f"{ss.pretty_name(p.get_stat('print_stats', 'filename'))} · "
-                                    f"{ss.fmt_duration(p.get_stat('print_stats', 'print_duration'))}")
+        elif (
+            state in ("complete", "error")
+            and p.get_stat("print_stats", "filename")
+            and self.done_key() != self.dismissed
+        ):
+            self.done_title.set_text(
+                _("Print complete") if state == "complete" else _("Print failed")
+            )
+            self.done_name.set_text(
+                f"{ss.pretty_name(p.get_stat('print_stats', 'filename'))} · "
+                f"{ss.fmt_duration(p.get_stat('print_stats', 'print_duration'))}"
+            )
             self.stack.set_visible_child_name("done")
         else:
             if self.stack.get_visible_child_name() != "idle" or not self.recent_grid.get_children():
@@ -483,7 +587,7 @@ class Panel(ScreenPanel):
         if action == "notify_status_update":
             self.update_view()
         elif action == "notify_metadata_update" and data.get("filename") == self.job_file:
-            self.job_file = None          # rebuild the job card thumbnail now that metadata exists
+            self.job_file = None  # rebuild the job card thumbnail now that metadata exists
             self.update_view()
         elif action == "notify_metadata_update" and self.stack.get_visible_child_name() == "idle":
             ss.debounce(self, "_meta_timer", 400, self.refresh_idle)

@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-# STARSTACK-ADDED: keeps the fork easy to merge (FORK_CHANGES.md #32). Run by CI and before releases.
+# STARSTACK-ADDED: keeps the fork easy to merge (FORK_CHANGES.md #32).
+# Run by CI and before releases.
 """Checks:
  1. every STARSTACK-CHANGE #n BEGIN has a matching END in the same file (and no nesting)
  2. every change number used in the code is listed in FORK_CHANGES.md
- 3. every upstream file we modified (vs tools/starstack/UPSTREAM_BASE) contains a STARSTACK-CHANGE block
+ 3. every upstream file we modified (vs tools/starstack/UPSTREAM_BASE) has a STARSTACK-CHANGE block
  4. every file we added starts with a STARSTACK-ADDED note (code/CSS/SVG/Markdown only)
 Usage: python tools/starstack/check_markers.py   (needs the upstream base commit in the git history)
 """
+
 import os
 import re
 import subprocess
@@ -20,7 +22,9 @@ errors = []
 
 
 def git(*args):
-    return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=True).stdout
+    return subprocess.run(
+        ["git", *args], cwd=ROOT, capture_output=True, text=True, check=True
+    ).stdout
 
 
 def read(path):
@@ -31,7 +35,10 @@ def read(path):
 
 
 base = open(os.path.join(ROOT, "tools", "starstack", "UPSTREAM_BASE")).read().strip()
-changed = [line.split("\t") for line in git("diff", "--name-status", "--no-renames", base, "HEAD").splitlines()]
+changed = [
+    line.split("\t")
+    for line in git("diff", "--name-status", "--no-renames", base, "HEAD").splitlines()
+]
 modified = [p for s, p in changed if s == "M"]
 added = [p for s, p in changed if s == "A"]
 
@@ -78,14 +85,20 @@ for path in modified:
         errors.append(f"{path}: modified upstream file without a STARSTACK-CHANGE block")
 
 for path in added:
-    if not path.endswith((".py", ".css", ".svg", ".md")) or path.startswith(".github/") or path == "FORK_CHANGES.md":
+    if (
+        not path.endswith((".py", ".css", ".svg", ".md"))
+        or path.startswith(".github/")
+        or path == "FORK_CHANGES.md"
+    ):
         continue
     head = (read(path) or "")[:400]
     if "STARSTACK-ADDED" not in head and "STARSTACK" not in path.upper():
         errors.append(f"{path}: new file without a STARSTACK-ADDED note at the top")
 
-print(f"upstream base {base[:8]}: {len(modified)} modified, {len(added)} added files; "
-      f"change numbers used: {sorted(used)}")
+print(
+    f"upstream base {base[:8]}: {len(modified)} modified, {len(added)} added files; "
+    f"change numbers used: {sorted(used)}"
+)
 if errors:
     print("\n".join("ERROR " + e for e in errors))
     sys.exit(1)

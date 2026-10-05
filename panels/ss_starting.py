@@ -6,8 +6,9 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
-from ks_includes.screen_panel import ScreenPanel
+
 from ks_includes import starstack as ss
+from ks_includes.screen_panel import ScreenPanel
 
 
 def plain(msg):
@@ -26,8 +27,13 @@ class Panel(ScreenPanel):
         super().__init__(screen, title)
         page = ss.page_box(spacing=8)
         page.set_valign(Gtk.Align.FILL)
-        center = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10,
-                         valign=Gtk.Align.CENTER, halign=Gtk.Align.CENTER, vexpand=True)
+        center = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=10,
+            valign=Gtk.Align.CENTER,
+            halign=Gtk.Align.CENTER,
+            vexpand=True,
+        )
         plate = Gtk.Box(halign=Gtk.Align.CENTER)
         plate.get_style_context().add_class("ss-logo-plate")
         plate.add(self._gtk.Image("starstack-logo", 220, 50))
@@ -65,13 +71,21 @@ class Panel(ScreenPanel):
     def update_text(self, text):
         self.title_lbl.set_text(plain(text))
         self.details.set_text((text or "").strip())
-        connected = bool(self._screen._ws and self._screen._ws.connected and self._screen.initialized)
-        ss.set_button_text(self.action, _("Restart Klipper") if connected else _("Retry connection"))
+        connected = bool(
+            self._screen._ws and self._screen._ws.connected and self._screen.state.initialized
+        )
+        ss.set_button_text(
+            self.action, _("Restart Klipper") if connected else _("Retry connection")
+        )
 
     def do_action(self, *args):
-        if self._screen._ws and self._screen._ws.connected and self._screen.initialized:
-            ss.confirm(self._screen, _("Restart Klipper?"),
-                       _("Use this if the printer stays on this screen for more than a minute."),
-                       _("Restart"), self._screen._ws.klippy.restart)
+        if self._screen._ws and self._screen._ws.connected and self._screen.state.initialized:
+            ss.confirm(
+                self._screen,
+                _("Restart Klipper?"),
+                _("Use this if the printer stays on this screen for more than a minute."),
+                _("Restart"),
+                self._screen._ws.api.restart,
+            )
         else:
             self._screen.connect_printer(self._screen.connecting_to_printer)

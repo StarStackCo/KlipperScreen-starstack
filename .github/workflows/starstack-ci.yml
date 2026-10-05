@@ -18,12 +18,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install linters
-        run: pip install pycodestyle==2.12.1 flake8==7.1.1
-      - name: Style (same rules as upstream KlipperScreen)
-        run: pycodestyle --ignore=E402,W503,W504 --max-line-length=120 --max-doc-length=120 screen.py ks_includes panels tools/starstack
-      - name: Python errors in StarStack files
-        run: flake8 --select=F --builtins=_ ks_includes/starstack*.py panels/ss_*.py tools/starstack/*.py
+      - name: Install ruff
+        run: pip install ruff==0.16.10
+      - name: Lint (upstream KlipperScreen rules from pyproject.toml, check only)
+        run: ruff check screen.py ks_includes panels tools/starstack
+      - name: Formatting of StarStack files (upstream files are left as upstream ships them)
+        run: ruff format --check ks_includes/starstack*.py panels/ss_*.py tools/starstack
       - name: STARSTACK-CHANGE markers balanced and documented
         run: python tools/starstack/check_markers.py
       - name: Cache theme sources

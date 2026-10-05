@@ -1,7 +1,8 @@
 # STARSTACK-ADDED: bench test helper (FORK_CHANGES.md #21). OFF unless ~/.starstack_dev exists.
 #
 # Lets the klipper-ui bench scripts drive the UI remotely (the Pi has no xdotool/XTest):
-#   echo "click Load filament" > ~/.starstack_dev_cmd   press the first visible, sensitive button with that label
+#   echo "click Load filament" > ~/.starstack_dev_cmd   press the first visible, enabled button
+#                                                       with that label
 #   echo "show ss_print"       > ~/.starstack_dev_cmd   open a page (like tapping the rail)
 #   echo "back"                > ~/.starstack_dev_cmd   close the current pop-up
 # The result is written to ~/.starstack_dev_out. Remove ~/.starstack_dev and restart to disable.
@@ -70,21 +71,25 @@ def _run(screen, cmd):
         screen._menu_go_back()
         return "ok back"
     if verb == "click":
-        roots = [w for w in Gtk.Window.list_toplevels() if isinstance(w, Gtk.Dialog) and w.is_visible()]
-        roots.append(screen.base_panel.main_grid)        # dialogs on top are searched first
+        roots = [
+            w for w in Gtk.Window.list_toplevels() if isinstance(w, Gtk.Dialog) and w.is_visible()
+        ]
+        roots.append(screen.base_panel.main_grid)  # dialogs on top are searched first
         for b in [b for r in roots for b in _buttons(r)]:
             texts = _labels(b)
             if arg in texts or (b.get_tooltip_text() == arg):
                 b.clicked()
                 return f"ok click {arg}"
         return f"not found: {arg} | panels: {' > '.join(screen._cur_panels)}"
-    if verb == "type":       # open the on-screen keyboard on the first visible text box (like tapping it)
+    if verb == "type":  # open the on-screen keyboard on the first visible text box (like a tap)
+
         def entries(w):
             found = [w] if isinstance(w, Gtk.Entry) and w.is_visible() else []
             if isinstance(w, Gtk.Container):
                 for c in w.get_children():
                     found += entries(c)
             return found
+
         boxes = entries(screen.base_panel.main_grid)
         if not boxes:
             return "no text box on this page"
@@ -94,19 +99,25 @@ def _run(screen, cmd):
         return "ok keyboard open"
     if verb == "where":
         return " > ".join(screen._cur_panels)
-    if verb == "sizes":      # who is asking for more height than the screen has?
-        lines = [f"window {screen.get_allocated_width()}x{screen.get_allocated_height()} "
-                 f"screen {screen.width}x{screen.height}"]
+    if verb == "sizes":  # who is asking for more height than the screen has?
+        lines = [
+            f"window {screen.get_allocated_width()}x{screen.get_allocated_height()} "
+            f"screen {screen.width}x{screen.height}"
+        ]
 
         def walk(w, depth):
             if depth > 7 or not w.get_visible():
                 return
             mn, nat = w.get_preferred_height()
-            lines.append(f"{'  ' * depth}{type(w).__name__} {' '.join(w.get_style_context().list_classes())} "
-                         f"min_h={mn} nat_h={nat} alloc_h={w.get_allocated_height()}")
+            classes = " ".join(w.get_style_context().list_classes())
+            lines.append(
+                f"{'  ' * depth}{type(w).__name__} {classes} "
+                f"min_h={mn} nat_h={nat} alloc_h={w.get_allocated_height()}"
+            )
             if isinstance(w, Gtk.Container):
                 for c in w.get_children():
                     walk(c, depth + 1)
+
         walk(screen.base_panel.main_grid, 0)
         return "\n".join(lines[:80])
     return f"unknown: {cmd}"

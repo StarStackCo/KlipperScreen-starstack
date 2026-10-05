@@ -5,7 +5,8 @@ KSPATH=$(dirname "$SCRIPTPATH")
 KSENV="${KLIPPERSCREEN_VENV:-${HOME}/.KlipperScreen-env}"
 
 XSERVER="xinit xinput x11-xserver-utils xserver-xorg-input-evdev xserver-xorg-input-libinput xserver-xorg-legacy xserver-xorg-video-fbdev"
-CAGE="cage seatd xwayland"
+CAGE="cage seatd"
+WESTON="weston seatd"
 PYGOBJECT="libgirepository1.0-dev gcc libcairo2-dev pkg-config python3-dev gir1.2-gtk-3.0"
 MISC="librsvg2-common libopenjp2-7 libdbus-glib-1-dev autoconf python3-venv"
 OPTIONAL="fonts-nanum fonts-ipafont libmpv-dev"
@@ -32,39 +33,111 @@ echo_ok ()
 
 install_graphical_backend()
 {
+  local interactive=0
+  [ -z "$BACKEND" ] && interactive=1
+
   while true; do
     if [ -z "$BACKEND" ]; then
       echo_text ""
       echo_text "Choose graphical backend"
-      echo_ok "Default is Xserver"
-      echo_text "Wayland is EXPERIMENTAL, needs kms/drm drivers, and doesn't support DPMS"
       echo_text ""
-      echo "Press enter for default (Xserver)"
-      read -r -e -p "Backend Xserver or Wayland (cage)? [X/w]" BACKEND
+      echo_text "Wayland requires working KMS/DRM drivers"
+      echo_text ""
+      echo_ok "Press enter to install X11/Xserver"
+      read -r -e -p "Backend X11 or Wayland (cage)? [X/w]" BACKEND
     fi
+
     if [[ "$BACKEND" =~ ^[wW]$ ]]; then
-        echo_text "Installing Wayland Cage Kiosk"
-        if sudo apt install -y $CAGE; then
+      if [ "$interactive" -eq 1 ]; then
+        echo_text ""
+        echo_text "Choose a Wayland compositor to install"
+        echo_text ""
+        echo_text "Cage is the most lightweight option"
+        echo_text "Weston is easier to rotate"
+        echo_text "None means you will provide the compositor yourself"
+        echo_text ""
+        echo_ok "Press enter to install Cage"
+        read -r -e -p "Cage, Weston or None (C/w/n)? [C]" COMPOSITOR
+      fi
+
+      case "$COMPOSITOR" in
+        w|W|weston)
+          echo_text "Installing Weston"
+          if sudo apt install -y $WESTON; then
+            echo_ok "Installed Weston"
+            BACKEND="W"
+            break
+          else
+            echo_error "Installation of Weston dependencies failed ($WESTON)"
+            exit 1
+          fi
+          ;;
+        n|N|none)
+          echo_ok "No Wayland compositor will be installed"
+          BACKEND="W"
+          START=0
+          COMPOSITOR_NONE=1
+          break
+          ;;
+        *)
+          echo_text "Installing Cage"
+          if sudo apt install -y $CAGE; then
             echo_ok "Installed Cage"
             BACKEND="W"
             break
-        else
+          else
             echo_error "Installation of Cage dependencies failed ($CAGE)"
             exit 1
-        fi
+          fi
+          ;;
+      esac
+    else
+      echo_text "Installing Xserver"
+      if sudo apt install -y $XSERVER; then
+        echo_ok "Installed X"
+        update_x11
+        BACKEND="X"
+        break
       else
-        echo_text "Installing Xserver"
-        if sudo apt install -y $XSERVER; then
-            echo_ok "Installed X"
-            update_x11
-            BACKEND="X"
-            break
+        echo_error "Installation of X-server dependencies failed ($XSERVER)"
+        exit 1
+      fi
+    fi
+  done
+}
+
+check_virtual_terminal()
+{
+    echo_text "Checking for working virtual terminal"
+
+    local service_file="/etc/systemd/system/KlipperScreen.service"
+
+    if [ ! -f "$service_file" ]; then
+        echo_error "The service file '$service_file' doesn't exist"
+        exit 1
+    fi
+
+    if [ -e /sys/class/tty/tty7 ] && [ -c /dev/tty7 ]; then
+        MISC+=" kbd"
+        echo_ok "Virtual terminal is available"
+    else
+        echo_text "No usable virtual terminal detected, disabling related configuration"
+        if sudo sed -i \
+            -e '/^ConditionPathExists=/s/^/#/' \
+            -e '/^ExecStartPost=/s/^/#/' \
+            -e '/^UtmpIdentifier=/s/^/#/' \
+            -e '/^UtmpMode=/s/^/#/' \
+            -e '/^TTYPath=/s/^/#/' \
+            -e '/^TTYReset=/s/^/#/' \
+            -e '/^TTYVHangup=/s/^/#/' \
+            -e '/^TTYVTDisallocate=/s/^/#/' \
+            "$service_file"; then
+            echo_ok "Disabled VT-related configuration"
         else
-            echo_error "Installation of X-server dependencies failed ($XSERVER)"
+            echo_error "Failed to disable VT-related configuration in '$service_file'"
             exit 1
         fi
     fi
-  done
 }
 
 install_packages()
@@ -124,7 +197,7 @@ create_virtualenv()
         echo_text "Removing old virtual environment"
         rm -rf "${KSENV}"
     fi
-    
+
     echo_text "Creating virtual environment"
     python3 -m venv "${KSENV}"
 
@@ -135,9 +208,9 @@ create_virtualenv()
 
     if [[ "$(uname -m)" =~ armv[67]l ]]; then
         echo_text "Using armv[67]l! Adding piwheels.org as extra index..."
-        pip --disable-pip-version-check install --extra-index-url https://www.piwheels.org/simple -r ${KSPATH}/scripts/KlipperScreen-requirements.txt
+        pip --disable-pip-version-check install --extra-index-url https://www.piwheels.org/simple -r "${KSPATH}/scripts/KlipperScreen-requirements.txt"
     else
-        pip --disable-pip-version-check install -r ${KSPATH}/scripts/KlipperScreen-requirements.txt
+        pip --disable-pip-version-check install -r "${KSPATH}/scripts/KlipperScreen-requirements.txt"
     fi
     if [ $? -gt 0 ]; then
         echo_error "Error: pip install exited with status code $?"
@@ -146,10 +219,10 @@ create_virtualenv()
         if [[ "$(uname -m)" =~ armv[67]l ]]; then
             echo_text "Adding piwheels.org as extra index..."
             pip install --extra-index-url https://www.piwheels.org/simple --upgrade pip setuptools
-            pip install --extra-index-url https://www.piwheels.org/simple -r ${KSPATH}/scripts/KlipperScreen-requirements.txt --prefer-binary
+            pip install --extra-index-url https://www.piwheels.org/simple -r "${KSPATH}/scripts/KlipperScreen-requirements.txt" --prefer-binary
         else
             pip install --upgrade pip setuptools
-            pip install -r ${KSPATH}/scripts/KlipperScreen-requirements.txt --prefer-binary
+            pip install -r "${KSPATH}/scripts/KlipperScreen-requirements.txt" --prefer-binary
         fi
         if [ $? -gt 0 ]; then
             echo_error "Unable to install dependencies, aborting install."
@@ -181,46 +254,51 @@ install_systemd_service()
 
 create_policy()
 {
-    POLKIT_DIR="/etc/polkit-1/rules.d"
-    POLKIT_USR_DIR="/usr/share/polkit-1/rules.d"
+    local POLKIT_DIR="/etc/polkit-1/rules.d"
+    local POLKIT_USR_DIR="/usr/share/polkit-1/rules.d"
+    local RULE_FILE="${POLKIT_DIR}/KlipperScreen.rules"
 
     echo_text "Installing KlipperScreen PolicyKit Rules"
+
     sudo groupadd -f klipperscreen
     sudo groupadd -f network
+
     sudo adduser "$USER" netdev
     sudo adduser "$USER" network
-    if [ ! -x "$(command -v pkaction)" ]; then
+    sudo adduser "$USER" klipperscreen
+
+    if ! command -v pkaction >/dev/null 2>&1; then
         echo "PolicyKit not installed"
         return
     fi
 
-    POLKIT_VERSION="$( pkaction --version | grep -Po "(\d+\.?\d*)" )"
+    POLKIT_VERSION="$(pkaction --version | grep -Po '(\d+\.?\d*)')"
     echo_text "PolicyKit Version ${POLKIT_VERSION} Detected"
-    if [ "$POLKIT_VERSION" = "0.105" ]; then
-        # install legacy pkla
+
+    if [[ "$POLKIT_VERSION" == 0.105* ]]; then
         create_policy_legacy
         return
     fi
 
-    RULE_FILE=""
-    if [ -d $POLKIT_USR_DIR ]; then
-        RULE_FILE="${POLKIT_USR_DIR}/KlipperScreen.rules"
-    elif [ -d $POLKIT_DIR ]; then
-        RULE_FILE="${POLKIT_DIR}/KlipperScreen.rules"
-    else
+    if [ ! -d "$POLKIT_DIR" ]; then
         echo "PolicyKit rules folder not detected"
         exit 1
     fi
-    echo_text "Installing PolicyKit Rules to ${RULE_FILE}..."
-    sudo rm ${RULE_FILE}
 
-    KS_GID=$( getent group klipperscreen | awk -F: '{printf "%d", $3}' )
-    sudo tee ${RULE_FILE} > /dev/null << EOF
+    # Remove old rules from both possible locations
+    sudo rm -f "${POLKIT_DIR}/KlipperScreen.rules"
+    sudo rm -f "${POLKIT_USR_DIR}/KlipperScreen.rules"
+
+    echo_text "Installing PolicyKit Rules to ${RULE_FILE}..."
+
+    sudo tee "$RULE_FILE" > /dev/null <<EOF
 polkit.addRule(function(action, subject) {
-    if (action.id.indexOf("org.freedesktop.NetworkManager.") == 0 && subject.isInGroup("network")) {
+    if (action.id.indexOf("org.freedesktop.NetworkManager.") == 0 &&
+        subject.isInGroup("network")) {
         return polkit.Result.YES;
     }
 });
+
 polkit.addRule(function(action, subject) {
     if ((action.id == "org.freedesktop.login1.power-off" ||
          action.id == "org.freedesktop.login1.power-off-multiple-sessions" ||
@@ -229,9 +307,9 @@ polkit.addRule(function(action, subject) {
          action.id == "org.freedesktop.login1.halt" ||
          action.id == "org.freedesktop.login1.halt-multiple-sessions" ||
          action.id.startsWith("org.freedesktop.NetworkManager.")) &&
-        subject.user == "$USER") {
+        subject.isInGroup("klipperscreen")) {
         return polkit.Result.YES;
-        }
+    }
 });
 EOF
 }
@@ -293,7 +371,7 @@ install_network_manager()
         echo "Press enter for default (Yes)"
         read -r -e -p "Install NetworkManager for the network panel [Y/n]" NETWORK
     fi
-    
+
     if [[ $NETWORK =~ ^[nN]$ ]]; then
         echo_error "Not installing NetworkManager for the network panel"
     else
@@ -303,15 +381,12 @@ install_network_manager()
         echo_text "You will need to reconnect to the network using KlipperScreen or nmtui or nmcli"
         sudo apt install network-manager
         sudo mkdir -p /etc/NetworkManager/conf.d
-        sudo tee /etc/NetworkManager/conf.d/any-user.conf > /dev/null << EOF
-[main]
-auth-polkit=false
-EOF
         sudo systemctl -q disable dhcpcd 2> /dev/null
         sudo systemctl -q stop dhcpcd 2> /dev/null
         sudo systemctl enable NetworkManager
         sudo systemctl -q --no-block start NetworkManager
         sync
+        echo "Rebooting system..."
         systemctl reboot
     fi
 }
@@ -339,6 +414,7 @@ if [[ $SERVICE =~ ^[nN]$ ]]; then
 else
     install_graphical_backend
     install_systemd_service
+    check_virtual_terminal
     if [ -z "$START" ]; then
         START=1
     fi
@@ -353,6 +429,12 @@ add_desktop_file
 install_network_manager
 if [ -z "$START" ] || [ "$START" -eq 0 ]; then
     echo_ok "KlipperScreen was installed"
+    if [ "${COMPOSITOR_NONE:-0}" = "1" ]; then
+        echo_error "WARNING: No Wayland compositor was installed."
+        echo_text "KlipperScreen will not start until you install one."
+        echo_ok "seatd is needed too, or an equivalent if you prefer."
+        echo_text "Then reboot the system."
+    fi
 else
     start_KlipperScreen
 fi

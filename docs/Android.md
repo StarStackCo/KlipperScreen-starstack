@@ -8,8 +8,15 @@ This article describe how to use KlipperScreen from an Android device using XSer
 
 !!! bug
     This method may cause [memory-leaks](https://github.com/KlipperScreen/KlipperScreen/issues/862)
+    if you don't disable DPMS when installed on X11
 
-    It's recommended that you use [VNC](VNC.md) instead or at least install [earlyoom](https://packages.debian.org/en/stable/earlyoom)
+    It's recommended that you use [VNC](VNC.md) instead
+
+    But if you want to use this at least install [earlyoom](https://packages.debian.org/en/stable/earlyoom)
+    ```bash
+    sudo apt install earlyoom
+    sudo systemctl enable --now earlyoom
+    ```
 
 
 1. [First install KlipperScreen](Installation.md)
@@ -45,7 +52,7 @@ This article describe how to use KlipperScreen from an Android device using XSer
     ```bash
     cd ~/KlipperScreen/scripts
     cp sample-android-adb.sh launch_KlipperScreen.sh
-    chmod +x ~/KlipperScreen/scripts/launch_KlipperScreen.sh
+    chmod +x launch_KlipperScreen.sh
     ```
 
 4. Start Xserver-XSDL On the Android device
@@ -103,7 +110,9 @@ if you missed it, restart the app.
 
 ## Recommended configuration for this use case
 
-Turn off DPMS and Display timeout:
+It's recommended to set Display timeout to never:
+
+Also for X11 installs turn off DPMS:
 
 ![disable_dpms_poweroff](img/disable_dpms_poweroff.png)
 

@@ -1,11 +1,13 @@
-# STARSTACK-ADDED: Settings page (scrolls): Advanced mode + tools + printer settings (FORK_CHANGES.md #25)
+# STARSTACK-ADDED: Settings page (FORK_CHANGES.md #25)
+# Scrolls: Advanced mode + tools + printer settings
 # Advanced tools live here so Controls never scrolls (D-029). Stock KlipperScreen panels are reused.
 import gi
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
-from ks_includes.screen_panel import ScreenPanel
+
 from ks_includes import starstack as ss
+from ks_includes.screen_panel import ScreenPanel
 
 
 class Panel(ScreenPanel):
@@ -45,7 +47,13 @@ class Panel(ScreenPanel):
         box = Gtk.Box(spacing=10, valign=Gtk.Align.CENTER)
         txt = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, valign=Gtk.Align.CENTER)
         txt.add(ss.label(_("Advanced mode"), "ss-row-title"))
-        txt.add(ss.label(_("Pressure advance, extrude, macros, console, limits"), "ss-btn-sub", ellipsize=True))
+        txt.add(
+            ss.label(
+                _("Pressure advance, extrude, macros, console, limits"),
+                "ss-btn-sub",
+                ellipsize=True,
+            )
+        )
         box.pack_start(txt, True, True, 0)
         # Switch pill: fixed size, text centered in it
         track = Gtk.Box(valign=Gtk.Align.CENTER, halign=Gtk.Align.END)
@@ -66,13 +74,22 @@ class Panel(ScreenPanel):
         if adv:
             self.list.add(ss.label(_("ADVANCED"), "ss-section ss-text-warning"))
             for name, note, cb in [
-                (_("Extrude / retract"), _("blocked when cold"), lambda: self.open("extrude", _("Extrude"))),
+                (
+                    _("Extrude / retract"),
+                    _("blocked when cold"),
+                    lambda: self.open("extrude", _("Extrude")),
+                ),
                 (_("Macros"), "", lambda: self.open("gcode_macros", _("Macros"))),
                 (_("Console"), _("type G-code"), lambda: self.open("ss_console", _("Console"))),
                 (_("Speed & acceleration limits"), "", lambda: self.open("limits", _("Limits"))),
                 (_("Updates"), "", lambda: self.open("updater", _("Update"))),
-                (_("All KlipperScreen tools"), _("bed mesh, etc."), lambda: self.open(
-                    "main_menu", _("KlipperScreen"), items=self._config.get_menu_items("__main"))),
+                (
+                    _("All KlipperScreen tools"),
+                    _("bed mesh, etc."),
+                    lambda: self.open(
+                        "main_menu", _("KlipperScreen"), items=self._config.get_menu_items("__main")
+                    ),
+                ),
                 (_("Restart firmware"), "", self.ask_restart),
             ]:
                 self.list.add(self.row(name, note, cb))
@@ -81,9 +98,19 @@ class Panel(ScreenPanel):
         lock = " · " + _("locked while printing") if printing else ""
         for name, note, cb, ok in [
             (_("Wi-Fi"), "", lambda: self.open("network", _("Network")), True),
-            (_("Screen & language"), _("brightness, sleep, 24 h"), lambda: self.open("settings", _("Settings")), True),
+            (
+                _("Screen & language"),
+                _("brightness, sleep, 24 h"),
+                lambda: self.open("settings", _("Settings")),
+                True,
+            ),
             (_("About this printer"), "", lambda: self.open("system", _("System")), True),
-            (_("Shut down / reboot") + lock, "", lambda: self.open("shutdown", _("Shutdown")), not printing),
+            (
+                _("Shut down / reboot") + lock,
+                "",
+                lambda: self.open("shutdown", _("Shutdown")),
+                not printing,
+            ),
         ]:
             self.list.add(self.row(name, note, cb, ok))
         self.list.show_all()
@@ -97,14 +124,26 @@ class Panel(ScreenPanel):
         def on():
             ss.set_setting("advanced", True)
             self.build()
-        ss.confirm(self._screen, _("Turn on Advanced mode?"),
-                   _("Advanced settings can ruin prints or damage the printer if set wrong.") + "\n"
-                   + _("Proceed at your own risk."), _("I understand, turn on"), on, kind="warning")
+
+        ss.confirm(
+            self._screen,
+            _("Turn on Advanced mode?"),
+            _("Advanced settings can ruin prints or damage the printer if set wrong.")
+            + "\n"
+            + _("Proceed at your own risk."),
+            _("I understand, turn on"),
+            on,
+            kind="warning",
+        )
 
     def ask_restart(self):
-        ss.confirm(self._screen, _("Restart firmware?"),
-                   _("Klipper restarts and the printer is ready again in about 10 seconds."),
-                   _("Restart"), self._screen._ws.klippy.restart_firmware)
+        ss.confirm(
+            self._screen,
+            _("Restart firmware?"),
+            _("Klipper restarts and the printer is ready again in about 10 seconds."),
+            _("Restart"),
+            self._screen._ws.api.restart_firmware,
+        )
 
     def activate(self):
         self.build()
