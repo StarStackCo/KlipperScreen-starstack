@@ -33,6 +33,7 @@ class Panel(ScreenPanel):
         self.shown = None  # what the list currently shows, to rebuild only on changes
         self.pw_ssid = None
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.NONE)
+        self.stack.set_vhomogeneous(False)  # size to the visible page, so the keyboard fits
         self.content.add(self.stack)
         try:
             from ks_includes.sdbus_nm import SdbusNm
