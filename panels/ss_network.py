@@ -101,40 +101,39 @@ class Panel(ScreenPanel):
         return page
 
     def build_password(self):
-        # Fits above the on-screen keyboard: title row, then entry + Show + Connect in one row
+        # Must fit above the on-screen keyboard (~120 px): one text line (title, or the error),
+        # then a single row: password box, Show, Cancel, Connect
         page = ss.page_box(spacing=6)
-        head = Gtk.Box(spacing=8)
         self.pw_title = ss.label("", "ss-row-title", ellipsize=True)
-        head.pack_start(self.pw_title, True, True, 0)
-        cancel = ss.button(_("Cancel"), css="ss-btn ss-btn-outline ss-btn-mid")
-        cancel.set_hexpand(False)
-        cancel.set_size_request(84, 40)
-        cancel.connect("clicked", self.close_password)
-        head.pack_end(cancel, False, False, 0)
-        page.pack_start(head, False, False, 0)
-        row = Gtk.Box(spacing=8)
+        page.pack_start(self.pw_title, False, False, 0)
+        row = Gtk.Box(spacing=6)
         self.pw_entry = Gtk.Entry(hexpand=True, visibility=False)
         self.pw_entry.set_input_purpose(Gtk.InputPurpose.PASSWORD)
         self.pw_entry.set_placeholder_text(_("Password"))
+        self.pw_entry.set_width_chars(6)
         self.pw_entry.get_style_context().add_class("ss-console-entry")
         self.pw_entry.connect("button-press-event", self._screen.show_keyboard)
         self.pw_entry.connect("touch-event", self._screen.show_keyboard)
         self.pw_entry.connect("activate", self.join)
-        self.pw_show = ss.button(_("Show"), css="ss-btn ss-btn-outline ss-btn-mid")
-        self.pw_show.set_hexpand(False)
-        self.pw_show.set_size_request(70, -1)
-        self.pw_show.connect("clicked", self.toggle_visible)
-        join = ss.button(_("Connect"), css="ss-btn ss-btn-primary ss-btn-mid")
-        join.set_hexpand(False)
-        join.set_size_request(96, -1)
-        join.connect("clicked", self.join)
         row.pack_start(self.pw_entry, True, True, 0)
-        row.pack_start(self.pw_show, False, False, 0)
-        row.pack_start(join, False, False, 0)
+        self.pw_show = None
+        for text, css, width, cb in (
+            (_("Show"), "ss-btn ss-btn-outline ss-btn-mid", 64, self.toggle_visible),
+            (_("Cancel"), "ss-btn ss-btn-outline ss-btn-mid", 80, self.close_password),
+            (_("Connect"), "ss-btn ss-btn-primary ss-btn-mid", 92, self.join),
+        ):
+            b = ss.button(text, css=css)
+            b.set_hexpand(False)
+            b.set_size_request(width, 44)
+            b.connect("clicked", cb)
+            row.pack_start(b, False, False, 0)
+            self.pw_show = self.pw_show or b
         page.pack_start(row, False, False, 0)
-        self.pw_error = ss.label("", "ss-text-error", wrap=True)
-        page.pack_start(self.pw_error, False, False, 0)
         return page
+
+    def pw_message(self, text, error=False):
+        self.pw_title.set_text(text)
+        ss.set_class(self.pw_title, "ss-text-error", error)
 
     # ------------------------------------------------------------------ state
     def networks(self):
@@ -381,11 +380,10 @@ class Panel(ScreenPanel):
     # ------------------------------------------------------------------ password page
     def open_password(self, ssid):
         self.pw_ssid = ssid
-        self.pw_title.set_text(_("Password for") + f" {ssid}")
+        self.pw_message(_("Password for") + f" {ssid}")
         self.pw_entry.set_text("")
         self.pw_entry.set_visibility(False)
         ss.set_button_text(self.pw_show, _("Show"))
-        self.pw_error.set_text("")
         self.stack.set_visible_child_name("password")
         self._screen.show_keyboard(entry=self.pw_entry)
 
@@ -397,11 +395,11 @@ class Panel(ScreenPanel):
     def join(self, *args):
         psk = self.pw_entry.get_text()
         if len(psk) < 8:
-            self.pw_error.set_text(_("Wi-Fi passwords have at least 8 characters."))
+            self.pw_message(_("Wi-Fi passwords have at least 8 characters."), error=True)
             return
         result = self.add_and_connect(self.pw_ssid, psk)
         if "error" in result:
-            self.pw_error.set_text(result.get("message", _("Couldn't add network")))
+            self.pw_message(result.get("message", _("Couldn't add network")), error=True)
             return
         self.close_password()
 
