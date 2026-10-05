@@ -1238,7 +1238,11 @@ class KlipperScreen(Gtk.ApplicationWindow):
     def printer_initializing(self, msg, go_to_splash=False):
         # STARSTACK-CHANGE #11 BEGIN: StarStack "Starting printer..." screen, not the stock splash
         if starstack.enabled(self):
-            if "ss_starting" not in self._cur_panels:
+            # Same rule as the stock splash below: only switch screens on first start or when
+            # asked (go_to_splash). Otherwise a late init message pulled Home back to this screen
+            # after Klipper was already ready, and nothing switched it back (D-059).
+            first = "ss_starting" not in self.panels
+            if (first or go_to_splash) and "ss_starting" not in self._cur_panels:
                 self.show_panel("ss_starting", remove_all=True)
             if "ss_starting" in self.panels:
                 self.panels["ss_starting"].update_text(msg)
