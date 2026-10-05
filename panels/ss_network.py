@@ -46,6 +46,8 @@ class Panel(ScreenPanel):
         self.stack.add_named(self.build_list(), "list")
         self.stack.add_named(self.build_password(), "password")
         self.content.show_all()
+        for w in (self.switch, self.refresh_btn):
+            w.set_no_show_all(True)  # visibility is set by refresh(), not by show_all()
         self.stack.set_visible_child_name("list")
 
     def popup(self, msg, level=3):
