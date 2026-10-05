@@ -72,6 +72,7 @@ Numbers **2–12** are edits inside upstream KlipperScreen files: the code carri
 | 11 | 2026-10-05 | `screen.py` `printer_initializing`, power-update guard | `ss_starting` replaces the stock splash while Klipper starts/restarts/reconnects |
 | 12 | 2026-10-05 | `.gitignore` | Ignore `tools/starstack/.cache/` (downloaded theme sources) |
 | 13 | 2026-10-05 | `screen.py` `show_keyboard` | Touch-sized on-screen keyboard (4 rows × 44 px keys, edge margins, `.ss-keyboard` style) next to the rail |
+| 14 | 2026-10-05 | `.github/dependabot.yml` **(deleted)** | Dependabot off on the fork: it opened PRs for upstream's own dependencies. Updates arrive through the upstream sync. If a merge reports a modify/delete conflict on this file, keep it deleted |
 
 ### Files we added (never conflict)
 | # | Date | Files | What |
