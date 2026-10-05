@@ -144,6 +144,17 @@ def thumbnail(panel, filename, size, image):
         if filename not in files.files:
             files.request_metadata(filename)
         return
+    ex = panel._gtk._executor
+    logging.info(f"SSDBG exec q={ex._work_queue.qsize()} threads={len(ex._threads)} shut={ex._shutdown}")
+
+    def probe():
+        try:
+            pb = panel._gtk.PixbufFromFile(files.get_thumbnail_location(filename)[1], size, size)
+            logging.info(f"SSDBG probe ok {pb}")
+        except Exception as e:
+            logging.exception(e)
+
+    ex.submit(probe)
     try:
         panel.load_image_async(filename, size, size, callback=done)
     except Exception as e:
