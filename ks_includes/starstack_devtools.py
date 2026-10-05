@@ -78,6 +78,20 @@ def _run(screen, cmd):
                 b.clicked()
                 return f"ok click {arg}"
         return f"not found: {arg} | panels: {' > '.join(screen._cur_panels)}"
+    if verb == "type":       # open the on-screen keyboard on the first visible text box (like tapping it)
+        def entries(w):
+            found = [w] if isinstance(w, Gtk.Entry) and w.is_visible() else []
+            if isinstance(w, Gtk.Container):
+                for c in w.get_children():
+                    found += entries(c)
+            return found
+        boxes = entries(screen.base_panel.main_grid)
+        if not boxes:
+            return "no text box on this page"
+        screen.show_keyboard(entry=boxes[0])
+        if arg:
+            boxes[0].set_text(arg)
+        return "ok keyboard open"
     if verb == "where":
         return " > ".join(screen._cur_panels)
     if verb == "sizes":      # who is asking for more height than the screen has?

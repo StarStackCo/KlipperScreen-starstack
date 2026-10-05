@@ -1296,6 +1296,12 @@ class KlipperScreen(Gtk.Window):
         kbd_grid = Gtk.Grid()
         kbd_grid.set_size_request(self.gtk.content_width, self.gtk.keyboard_height)
         kbd_grid.set_vexpand(False)
+        # STARSTACK-CHANGE #13 BEGIN: touch-sized keyboard (4 rows of 44 px keys) that fits next to the
+        # StarStack rail and keeps keys away from the screen edges (styles: .ss-keyboard)
+        if starstack.enabled(self):
+            kbd_grid.set_size_request(-1, starstack.KEYBOARD_HEIGHT)
+            kbd_grid.get_style_context().add_class("ss-keyboard")
+        # STARSTACK-CHANGE #13 END
 
         if self._config.get_main_config().getboolean("use-matchbox-keyboard", False):
             return self._show_matchbox_keyboard(kbd_grid)

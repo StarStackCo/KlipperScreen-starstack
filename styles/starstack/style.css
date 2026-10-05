@@ -376,3 +376,16 @@ button.ss-btn-white label { color: @bg; font-weight: 900; }
 .ss-content-guard, .ss-content-guard viewport { background-color: @bg; border: 0; }
 .ss-logo-plate { background-color: #F8F8F8; border-radius: 10px; padding: 12px 18px; }
 .ss-starting-title { font-size: 16px; font-weight: 800; }
+
+/* STARSTACK-ADDED: on-screen keyboard (hook #13 in screen.py adds .ss-keyboard)
+   Keys ≥ 44 px tall, ≥ 14 px from the screen edges, flat dark keys like the rest of the UI. */
+.ss-keyboard { background-color: @rail; padding: 6px 14px 12px 10px; border-top: 1px solid @lines; }
+.ss-keyboard button.keyboard_pad {
+    min-height: 44px; min-width: 0; margin: 2px; padding: 0;
+    border: 0; border-radius: 8px; box-shadow: none; background-image: none;
+    background-color: @buttons-bg;
+}
+.ss-keyboard button.keyboard_pad label { font-size: 15px; font-weight: 700; }
+.ss-keyboard button.keyboard_pad.active,
+.ss-keyboard button.keyboard_pad:active { background-color: @primary; }
+.ss-keyboard button.keyboard_pad:not(:only-child) { }
