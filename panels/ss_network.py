@@ -329,6 +329,19 @@ class Panel(ScreenPanel):
         self.shown = None
         GLib.timeout_add_seconds(1, self._refresh_once)
 
+    def quiet_monitor(self):
+        """Turning the radio on/off changes the device state, which the backend's monitor would
+        announce as "Network disconnected". Pause it and restart it with a fresh baseline."""
+        self.nm.set_connection_monitoring(False)
+        GLib.timeout_add_seconds(5, self._restart_monitor)
+
+    def _restart_monitor(self):
+        if self.timer is not None and self.nm.wifi:  # page still open
+            self.nm.wifi_state = -1  # first state seen again = baseline, no pop-up
+            self.nm.set_connection_monitoring(True)
+            GLib.timeout_add_seconds(1, self.nm.monitor_connection_status)
+        return False
+
     def _refresh_once(self):
         self.refresh()
         return False
@@ -336,6 +349,7 @@ class Panel(ScreenPanel):
     def toggle_wifi(self, *args):
         on = self.nm.is_wifi_enabled()
         if not on:
+            self.quiet_monitor()
             self.nm.toggle_wifi(True)
             self.shown = None
             GLib.timeout_add_seconds(3, self._rescan_once)
@@ -351,6 +365,7 @@ class Panel(ScreenPanel):
         )
 
     def _wifi_off(self):
+        self.quiet_monitor()
         self.nm.toggle_wifi(False)
         self.shown = None
         self.refresh()
