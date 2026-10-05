@@ -3,7 +3,7 @@
 """Build the StarStack KlipperScreen theme.
 
     python tools/starstack/build_theme.py            build into styles/starstack/
-    python tools/starstack/build_theme.py --check    exit 1 if styles/starstack/ is out of date (used by CI)
+    python tools/starstack/build_theme.py --check    exit 1 if styles/starstack/ is stale (CI)
 
 Inputs (all in this folder, the single source of truth):
     style.css          the theme CSS (edit this, never styles/starstack/style.css)
@@ -12,6 +12,7 @@ Third-party sources are downloaded once from their official releases into .cache
 checked against pinned SHA-256 hashes:
     Bootstrap Icons 1.13.1 (MIT), Public Sans 2.001 (OFL-1.1)
 """
+
 import hashlib
 import json
 import os
@@ -26,53 +27,104 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 FORK = os.path.abspath(os.path.join(HERE, "..", ".."))
 CACHE = os.path.join(HERE, ".cache")
 SOURCES = {
-    "bi.zip": ("https://github.com/twbs/icons/releases/download/v1.13.1/bootstrap-icons-1.13.1.zip",
-               "999021e12fab5c9ede5e4e7072eb176122be798b2f99195acf5dda47aef8fc93"),
-    "ps.zip": ("https://github.com/uswds/public-sans/releases/download/v2.001/public-sans-v2.001.zip",
-               "88cacdf7cd03b31af8f1f83e1f51e0eb5a6052565a6c014c90c385f1ff2d13a5"),
+    "bi.zip": (
+        "https://github.com/twbs/icons/releases/download/v1.13.1/bootstrap-icons-1.13.1.zip",
+        "999021e12fab5c9ede5e4e7072eb176122be798b2f99195acf5dda47aef8fc93",
+    ),
+    "ps.zip": (
+        "https://github.com/uswds/public-sans/releases/download/v2.001/public-sans-v2.001.zip",
+        "88cacdf7cd03b31af8f1f83e1f51e0eb5a6052565a6c014c90c385f1ff2d13a5",
+    ),
 }
 WHITE, SKY, HOT, ERR, OK_ = "#FAFAFA", "#88D8F2", "#FF8904", "#FF6467", "#5CA300"
 
 # KlipperScreen icon name -> (Bootstrap icon, colour). Names not listed keep the
 # material-dark artwork (printer-specific drawings Bootstrap has no match for).
 MAP = {
-    "main": ("house", WHITE), "home": ("house-door", WHITE), "back": ("arrow-left", WHITE),
-    "arrow-up": ("arrow-up", WHITE), "arrow-down": ("arrow-down", WHITE),
-    "arrow-left": ("arrow-left", WHITE), "arrow-right": ("arrow-right", WHITE),
-    "emergency": ("exclamation-octagon-fill", "#FFFFFF"), "shutdown": ("power", WHITE),
-    "settings": ("gear", WHITE), "files": ("folder2-open", WHITE), "file": ("file-earmark", WHITE),
-    "folder": ("folder", WHITE), "printer": ("printer", WHITE), "move": ("arrows-move", WHITE),
-    "fan": ("fan", WHITE), "fan-on": ("fan", SKY), "heat-up": ("thermometer-high", HOT),
-    "heater": ("thermometer-half", HOT), "cool-down": ("snow", SKY), "pause": ("pause-fill", WHITE),
-    "resume": ("play-fill", WHITE), "stop": ("stop-fill", ERR), "cancel": ("x-circle", ERR),
-    "refresh": ("arrow-clockwise", WHITE), "delete": ("trash", WHITE), "info": ("info-circle", WHITE),
-    "console": ("terminal", WHITE), "clock": ("clock", WHITE), "hourglass": ("hourglass-split", WHITE),
-    "lock": ("lock-fill", HOT), "increase": ("plus-lg", WHITE), "decrease": ("dash-lg", WHITE),
-    "complete": ("check-circle-fill", OK_), "network": ("wifi", WHITE),
-    "wifi_excellent": ("wifi", WHITE), "wifi_good": ("wifi-2", WHITE), "wifi_fair": ("wifi-1", WHITE),
-    "wifi_weak": ("wifi-off", HOT), "light": ("lightbulb", WHITE), "camera": ("camera", WHITE),
-    "sd": ("sd-card", WHITE), "warning": ("exclamation-triangle-fill", HOT),
-    "notifications": ("bell", WHITE), "notifications_active": ("bell-fill", SKY),
-    "notification_important": ("bell-fill", HOT), "speed+": ("speedometer2", WHITE),
-    "speed-": ("speedometer", WHITE), "motor-off": ("slash-circle", WHITE),
-    "cw": ("arrow-clockwise", WHITE), "ccw": ("arrow-counterclockwise", WHITE),
-    "backspace": ("backspace", WHITE), "shuffle": ("shuffle", WHITE), "fine-tune": ("sliders", WHITE),
-    "custom-script": ("code-square", WHITE), "hashtag": ("hash", WHITE), "spool": ("disc", WHITE),
+    "main": ("house", WHITE),
+    "home": ("house-door", WHITE),
+    "back": ("arrow-left", WHITE),
+    "arrow-up": ("arrow-up", WHITE),
+    "arrow-down": ("arrow-down", WHITE),
+    "arrow-left": ("arrow-left", WHITE),
+    "arrow-right": ("arrow-right", WHITE),
+    "emergency": ("exclamation-octagon-fill", "#FFFFFF"),
+    "shutdown": ("power", WHITE),
+    "settings": ("gear", WHITE),
+    "files": ("folder2-open", WHITE),
+    "file": ("file-earmark", WHITE),
+    "folder": ("folder", WHITE),
+    "printer": ("printer", WHITE),
+    "move": ("arrows-move", WHITE),
+    "fan": ("fan", WHITE),
+    "fan-on": ("fan", SKY),
+    "heat-up": ("thermometer-high", HOT),
+    "heater": ("thermometer-half", HOT),
+    "cool-down": ("snow", SKY),
+    "pause": ("pause-fill", WHITE),
+    "resume": ("play-fill", WHITE),
+    "stop": ("stop-fill", ERR),
+    "cancel": ("x-circle", ERR),
+    "refresh": ("arrow-clockwise", WHITE),
+    "delete": ("trash", WHITE),
+    "info": ("info-circle", WHITE),
+    "console": ("terminal", WHITE),
+    "clock": ("clock", WHITE),
+    "hourglass": ("hourglass-split", WHITE),
+    "lock": ("lock-fill", HOT),
+    "increase": ("plus-lg", WHITE),
+    "decrease": ("dash-lg", WHITE),
+    "complete": ("check-circle-fill", OK_),
+    "network": ("wifi", WHITE),
+    "wifi_excellent": ("wifi", WHITE),
+    "wifi_good": ("wifi-2", WHITE),
+    "wifi_fair": ("wifi-1", WHITE),
+    "wifi_weak": ("wifi-off", HOT),
+    "light": ("lightbulb", WHITE),
+    "camera": ("camera", WHITE),
+    "sd": ("sd-card", WHITE),
+    "warning": ("exclamation-triangle-fill", HOT),
+    "notifications": ("bell", WHITE),
+    "notifications_active": ("bell-fill", SKY),
+    "notification_important": ("bell-fill", HOT),  # name used by upstream menu.py
+    "notifications_important": ("bell-fill", HOT),  # name used by upstream base_panel.py
+    "edit": ("pencil", WHITE),
+    "archived": ("archive", WHITE),
+    "speed+": ("speedometer2", WHITE),
+    "speed-": ("speedometer", WHITE),
+    "motor-off": ("slash-circle", WHITE),
+    "cw": ("arrow-clockwise", WHITE),
+    "ccw": ("arrow-counterclockwise", WHITE),
+    "backspace": ("backspace", WHITE),
+    "shuffle": ("shuffle", WHITE),
+    "fine-tune": ("sliders", WHITE),
+    "custom-script": ("code-square", WHITE),
+    "hashtag": ("hash", WHITE),
+    "spool": ("disc", WHITE),
 }
-GRAPH = {"graph_colors": {
-    "extruder": {"colors": ["FF8904", "FF6467", "F59E0B"], "state": 0},
-    "bed": {"colors": ["00ACC7"], "state": 0},
-    "fan": {"colors": ["88D8F2", "8FA0B8"], "state": 0},
-    "sensor": {"colors": ["8FA0B8", "5CA300", "91C5FF", "1F3FAD"], "state": 0}}}
+GRAPH = {
+    "graph_colors": {
+        "extruder": {"colors": ["FF8904", "FF6467", "F59E0B"], "state": 0},
+        "bed": {"colors": ["00ACC7"], "state": 0},
+        "fan": {"colors": ["88D8F2", "8FA0B8"], "state": 0},
+        "sensor": {"colors": ["8FA0B8", "5CA300", "91C5FF", "1F3FAD"], "state": 0},
+    }
+}
 LICENSES = (
-    "# STARSTACK-ADDED: third-party assets in this theme (generated by tools/starstack/build_theme.py)\n\n"
-    "- `images/` icons marked `STARSTACK-ADDED`: [Bootstrap Icons](https://github.com/twbs/icons) v1.13.1,\n"
+    "# STARSTACK-ADDED: third-party assets in this theme "
+    "(generated by tools/starstack/build_theme.py)\n\n"
+    "- `images/` icons marked `STARSTACK-ADDED`: "
+    "[Bootstrap Icons](https://github.com/twbs/icons) v1.13.1,\n"
     "  MIT license.\n"
-    "- `images/starstack-logo.png`: StarStack logo. A StarStack Co. trademark, **not** covered by this repo's\n"
+    "- `images/starstack-logo.png`: StarStack logo. "
+    "A StarStack Co. trademark, **not** covered by this repo's\n"
     "  license (see TRADEMARKS.md).\n"
-    "- Other `images/`: copied from KlipperScreen `styles/material-dark` (same license as KlipperScreen).\n"
-    "- `fonts/`: [Public Sans](https://github.com/uswds/public-sans) v2.001, SIL Open Font License 1.1\n"
-    "  (`fonts/OFL.txt`).\n")
+    "- Other `images/`: copied from KlipperScreen `styles/material-dark` "
+    "(same license as KlipperScreen).\n"
+    "- `fonts/`: [Public Sans](https://github.com/uswds/public-sans) v2.001, "
+    "SIL Open Font License 1.1\n"
+    "  (`fonts/OFL.txt`).\n"
+)
 
 
 def fetch(name):
@@ -105,14 +157,19 @@ def build(out):
     if missing:
         sys.exit(f"Bootstrap icons not found: {missing}")
     for ks, (bname, colour) in sorted(MAP.items()):
-        svg = bi.read(names[bname]).decode().replace("currentColor", colour)   # GdkPixbuf can't resolve currentColor
+        svg = (
+            bi.read(names[bname]).decode().replace("currentColor", colour)
+        )  # GdkPixbuf can't resolve currentColor
         svg = re.sub(r'\sclass="[^"]*"', "", svg)
         for ext in ("png", "svg"):
             old = os.path.join(img, f"{ks}.{ext}")
             if os.path.exists(old):
                 os.remove(old)
         with open(os.path.join(img, ks + ".svg"), "w", encoding="utf-8", newline="\n") as f:
-            f.write(f"<!-- STARSTACK-ADDED: Bootstrap Icons '{bname}' (MIT), colour {colour} -->\n" + svg)
+            f.write(
+                f"<!-- STARSTACK-ADDED: Bootstrap Icons '{bname}' (MIT), colour {colour} -->\n"
+                + svg
+            )
     shutil.copy(os.path.join(HERE, "brand", "logo2.png"), os.path.join(img, "starstack-logo.png"))
     ps = fetch("ps.zip")
     for w in ("Regular", "SemiBold", "ExtraBold", "Black"):
@@ -134,7 +191,9 @@ def tree(root):
     for d, _dirs, files in os.walk(root):
         for fn in files:
             p = os.path.join(d, fn)
-            result[os.path.relpath(p, root).replace(os.sep, "/")] = hashlib.sha256(open(p, "rb").read()).hexdigest()
+            result[os.path.relpath(p, root).replace(os.sep, "/")] = hashlib.sha256(
+                open(p, "rb").read()
+            ).hexdigest()
     return result
 
 
@@ -144,7 +203,9 @@ if __name__ == "__main__":
         with tempfile.TemporaryDirectory() as tmp:
             build(os.path.join(tmp, "starstack"))
             want, have = tree(os.path.join(tmp, "starstack")), tree(target)
-        diff = sorted(set(want) ^ set(have)) + sorted(k for k in want if k in have and want[k] != have[k])
+        diff = sorted(set(want) ^ set(have)) + sorted(
+            k for k in want if k in have and want[k] != have[k]
+        )
         if diff:
             print("styles/starstack/ is out of date. Run: python tools/starstack/build_theme.py")
             for d in diff[:20]:

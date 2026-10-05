@@ -4,12 +4,20 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
-from ks_includes.screen_panel import ScreenPanel
-from ks_includes import starstack as ss
 
-JOG = [("X −", "G91\nG1 X-10 F3000\nG90"), ("Y −", "G91\nG1 Y-10 F3000\nG90"), ("Z −", "G91\nG1 Z-10 F600\nG90"),
-       ("Home all", "G28"), ("X +", "G91\nG1 X10 F3000\nG90"), ("Y +", "G91\nG1 Y10 F3000\nG90"),
-       ("Z +", "G91\nG1 Z10 F600\nG90"), ("Motors off", "M84")]
+from ks_includes import starstack as ss
+from ks_includes.screen_panel import ScreenPanel
+
+JOG = [
+    ("X −", "G91\nG1 X-10 F3000\nG90"),
+    ("Y −", "G91\nG1 Y-10 F3000\nG90"),
+    ("Z −", "G91\nG1 Z-10 F600\nG90"),
+    ("Home all", "G28"),
+    ("X +", "G91\nG1 X10 F3000\nG90"),
+    ("Y +", "G91\nG1 Y10 F3000\nG90"),
+    ("Z +", "G91\nG1 Z10 F600\nG90"),
+    ("Motors off", "M84"),
+]
 
 
 class Panel(ScreenPanel):
@@ -36,9 +44,15 @@ class Panel(ScreenPanel):
         fil = ss.grid(2, spacing=8)
         self.load_btn = ss.button(_("Load filament"), css="ss-btn ss-btn-card ss-btn-mid")
         self.unload_btn = ss.button(_("Unload filament"), css="ss-btn ss-btn-card ss-btn-mid")
-        self.load_btn.connect("clicked", lambda w: ss._push(self._screen, "ss_filament", ss_mode="load"))
-        self.unload_btn.connect("clicked", lambda w: ss._push(
-            self._screen, "ss_filament", ss_mode="unload", ss_material=self.loaded))
+        self.load_btn.connect(
+            "clicked", lambda w: ss._push(self._screen, "ss_filament", ss_mode="load")
+        )
+        self.unload_btn.connect(
+            "clicked",
+            lambda w: ss._push(
+                self._screen, "ss_filament", ss_mode="unload", ss_material=self.loaded
+            ),
+        )
         ss.grid_add(fil, [self.load_btn, self.unload_btn])
         page.add(fil)
 
@@ -66,16 +80,29 @@ class Panel(ScreenPanel):
         mx = float(cfg.get("max_temp", 300 if nozzle else 110))
         idx = 0 if nozzle else 1
         cmd = "M104 S{}" if nozzle else "M140 S{}"
-        ss.adjust(self._screen, ss_title=_("Nozzle target") if nozzle else _("Bed target"),
-                  ss_value=p.get_stat(dev, "target") or 0, ss_min=0, ss_max=mx, ss_unit="°C",
-                  ss_presets=[(_("Off"), 0)] + [(m, t[idx]) for m, t in ss.MATERIALS.items()],
-                  ss_apply=lambda v: ss.gcode(self._screen, cmd.format(int(v))))
+        ss.adjust(
+            self._screen,
+            ss_title=_("Nozzle target") if nozzle else _("Bed target"),
+            ss_value=p.get_stat(dev, "target") or 0,
+            ss_min=0,
+            ss_max=mx,
+            ss_unit="°C",
+            ss_presets=[(_("Off"), 0)] + [(m, t[idx]) for m, t in ss.MATERIALS.items()],
+            ss_apply=lambda v: ss.gcode(self._screen, cmd.format(int(v))),
+        )
 
     def edit_fan(self, widget):
         fan = round((self._printer.get_stat("fan", "speed") or 0) * 100)
-        ss.adjust(self._screen, ss_title=_("Part fan"), ss_value=fan, ss_min=0, ss_max=100, ss_unit="%",
-                  ss_presets=[(_("Off"), 0), ("50%", 50), ("80%", 80), ("100%", 100)],
-                  ss_apply=lambda v: ss.gcode(self._screen, f"M106 S{int(round(v * 2.55))}"))
+        ss.adjust(
+            self._screen,
+            ss_title=_("Part fan"),
+            ss_value=fan,
+            ss_min=0,
+            ss_max=100,
+            ss_unit="%",
+            ss_presets=[(_("Off"), 0), ("50%", 50), ("80%", 80), ("100%", 100)],
+            ss_apply=lambda v: ss.gcode(self._screen, f"M106 S{int(round(v * 2.55))}"),
+        )
 
     def refresh(self):
         p = self._printer
@@ -86,18 +113,32 @@ class Panel(ScreenPanel):
         self.lock1.set_visible(locked)
         self.lock2.set_visible(locked)
         e_t, e_g = p.get_stat("extruder", "temperature") or 0, p.get_stat("extruder", "target") or 0
-        b_t, b_g = p.get_stat("heater_bed", "temperature") or 0, p.get_stat("heater_bed", "target") or 0
-        ss.set_button_text(self.t_noz, None, f"{e_t:.0f}°  " + (f"→ {e_g:.0f}°" if e_g else _("off")))
-        ss.set_button_text(self.t_bed, None, f"{b_t:.0f}°  " + (f"→ {b_g:.0f}°" if b_g else _("off")))
+        b_t, b_g = (
+            p.get_stat("heater_bed", "temperature") or 0,
+            p.get_stat("heater_bed", "target") or 0,
+        )
+        ss.set_button_text(
+            self.t_noz, None, f"{e_t:.0f}°  " + (f"→ {e_g:.0f}°" if e_g else _("off"))
+        )
+        ss.set_button_text(
+            self.t_bed, None, f"{b_t:.0f}°  " + (f"→ {b_g:.0f}°" if b_g else _("off"))
+        )
         ss.set_button_text(self.t_fan, None, f"{(p.get_stat('fan', 'speed') or 0) * 100:.0f}%")
         ss.set_class(self.t_noz, "ss-hot", e_g > 0)
         ss.set_class(self.t_bed, "ss-hot", b_g > 0)
 
     def activate(self):
-        self.loaded = ss.loaded_material(self._screen)
-        self.loaded_lbl.set_text("· " + (f"{self.loaded} " + _("loaded") if self.loaded else _("none loaded")))
-        ss.set_button_text(self.unload_btn, _("Unload") + f" {self.loaded}" if self.loaded else _("Unload filament"))
+        ss.query_loaded_material(self._screen, self._show_loaded)
         self.refresh()
+
+    def _show_loaded(self, material):
+        self.loaded = material
+        self.loaded_lbl.set_text(
+            "· " + (f"{material} " + _("loaded") if material else _("none loaded"))
+        )
+        ss.set_button_text(
+            self.unload_btn, _("Unload") + f" {material}" if material else _("Unload filament")
+        )
 
     def process_update(self, action, data):
         if action == "notify_status_update":

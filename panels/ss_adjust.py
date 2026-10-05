@@ -1,23 +1,40 @@
-# STARSTACK-ADDED: value adjuster (nozzle / bed / fan / flow / pressure advance) (FORK_CHANGES.md #26)
+# STARSTACK-ADDED: value adjuster (FORK_CHANGES.md #26)
+# nozzle / bed / fan / flow / pressure advance
 # Opened with ks_includes.starstack.adjust(). Values are clamped to [ss_min, ss_max]
 # here AND by Klipper / the StarStack macros on the printer.
 import gi
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
-from ks_includes.screen_panel import ScreenPanel
+
 from ks_includes import starstack as ss
+from ks_includes.screen_panel import ScreenPanel
 
 
 class Panel(ScreenPanel):
-    def __init__(self, screen, title, ss_title="", ss_value=0, ss_min=0, ss_max=100, ss_unit="",
-                 ss_steps=(-10, -1, 1, 10), ss_presets=(), ss_decimals=0, ss_apply=None, **kwargs):
+    def __init__(
+        self,
+        screen,
+        title,
+        ss_title="",
+        ss_value=0,
+        ss_min=0,
+        ss_max=100,
+        ss_unit="",
+        ss_steps=(-10, -1, 1, 10),
+        ss_presets=(),
+        ss_decimals=0,
+        ss_apply=None,
+        **kwargs,
+    ):
         super().__init__(screen, title)
         self.v, self.lo, self.hi = ss_value, ss_min, ss_max
         self.unit, self.dec, self.apply_cb = ss_unit, ss_decimals, ss_apply
         for child in self.content.get_children():
             self.content.remove(child)
-        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, valign=Gtk.Align.CENTER, vexpand=True)
+        card = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=8, valign=Gtk.Align.CENTER, vexpand=True
+        )
         card.get_style_context().add_class("ss-dialog")
         head = Gtk.Box(spacing=8)
         head.add(ss.label(ss_title, "ss-dialog-title"))

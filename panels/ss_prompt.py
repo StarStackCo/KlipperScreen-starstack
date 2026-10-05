@@ -5,8 +5,9 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
-from ks_includes.screen_panel import ScreenPanel
+
 from ks_includes import starstack as ss
+from ks_includes.screen_panel import ScreenPanel
 
 
 class Panel(ScreenPanel):
@@ -17,8 +18,7 @@ class Panel(ScreenPanel):
         card.get_style_context().add_class("ss-dialog")
         head = Gtk.Box(spacing=8)
         header = (ss_prompt.header or "").strip() or _("Printer message")
-        head.pack_start(ss.label(header, "ss-dialog-title", wrap=True),
-                        True, True, 0)
+        head.pack_start(ss.label(header, "ss-dialog-title", wrap=True), True, True, 0)
         close = ss.button("×", css="ss-btn ss-btn-outline ss-btn-close")
         close.set_hexpand(False)
         close.connect("clicked", lambda w: ss_prompt.close())
@@ -34,7 +34,7 @@ class Panel(ScreenPanel):
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll.set_vexpand(True)
         scroll.add(box)
-        if box.get_children():            # macro-defined buttons
+        if box.get_children():  # macro-defined buttons
             card.pack_start(scroll, True, True, 0)
         else:
             card.pack_start(Gtk.Box(vexpand=True), True, True, 0)

@@ -10,9 +10,10 @@ Design/plan docs live in the separate repo `StarStackCo/klipper-ui`.
 | `origin` remote | `StarStackCo/KlipperScreen-starstack` (public) |
 | `master` | Mirror of upstream `master`. **Never commit here** |
 | `dev` | **Work happens here.** Bench-tested with `klipper-ui/scripts/ks-update.sh --branch dev` |
+| `bench` | Throw-away debug builds for the bench Pi (`ks-update.sh --branch bench`). No CI runs on it and it's never merged. **Debug commits go here, never on `dev`** |
 | `starstack` | **Stable.** What printers install through Mainsail's update manager. Only updated by a pull request from `dev` after the bench checklist passes |
 
-**Base:** upstream `f580242e` (v0.4.6-26), recorded in `tools/starstack/UPSTREAM_BASE`.
+**Base:** upstream `f2eb6919` (v0.4.7-196, merged 2026-10-05), recorded in `tools/starstack/UPSTREAM_BASE`.
 
 ## Release flow (dev → stable)
 1. Work on `dev`, push, and test on the bench Pi: `scripts/ks-update.sh --branch dev` (klipper-ui repo).
@@ -32,7 +33,7 @@ It can always be run by hand from the Actions tab.
 ```bash
 git fetch upstream
 git checkout master && git merge --ff-only upstream/master && git push origin master
-git checkout dev && git merge master        # conflicts can only be inside STARSTACK-CHANGE blocks (#2-#12)
+git checkout dev && git merge master        # conflicts can only be inside STARSTACK-CHANGE blocks (#2-#16)
 python tools/starstack/check_markers.py     # every block still balanced and listed
 git push origin dev                          # then bench-test, then PR dev → starstack
 ```
@@ -54,7 +55,7 @@ After merging a new upstream base, update `tools/starstack/UPSTREAM_BASE` to the
 When merging upstream: conflicts can only happen inside `STARSTACK-CHANGE` blocks. Re-apply the block's intent on top of the new upstream code and keep the same `#n`.
 
 ## Change list
-Numbers **2–12** are edits inside upstream KlipperScreen files: the code carries
+Numbers **2–16** are edits inside upstream KlipperScreen files: the code carries
 `STARSTACK-CHANGE #n BEGIN/END` markers with the same number. Numbers **20+** are files we added
 (each starts with a `STARSTACK-ADDED` note). `python tools/starstack/check_markers.py` verifies this.
 
@@ -62,16 +63,19 @@ Numbers **2–12** are edits inside upstream KlipperScreen files: the code carri
 | # | Date | File | What and why |
 |---|---|---|---|
 | 2 | 2026-10-04 | `README.md` (top) | Fork notice pointing to this file |
-| 4 | 2026-10-04 | `panels/base_panel.py` (import + end of `__init__`) | Install the StarStack rail when the theme is "starstack" |
+| 4 | 2026-10-04 | `panels/base_panel.py` (import + end of `__init__`). Hook imports use `# isort: split` so ruff leaves upstream's import order alone | Install the StarStack rail when the theme is "starstack" |
 | 5 | 2026-10-04 | `panels/base_panel.py` `add_content` | Rail manages page highlight and STOP. Skip stock action-bar logic |
 | 6 | 2026-10-04 | `panels/base_panel.py` `process_update` | Keep STOP color in sync with printer activity |
-| 7 | 2026-10-04 | `panels/base_panel.py` `reload_icons` | Rail icons are built by the rail (STOP has no plain image) |
+| 7 | 2026-10-04 | `panels/base_panel.py` `reload_icons`, `_reconfigure_main_grid` | Rail icons are built by the rail (STOP has no plain image). Around upstream's grid rebuild: unwrap the content guard first, then restore rail width + guard (added 2026-10-05 with the v0.4.7 merge) |
 | 8 | 2026-10-04 | `screen.py` (import, `state_ready/printing/paused/error/shutdown`, `_ss_stopped`) | `ss_home` replaces main_menu/job_status. `ss_stopped` replaces the splash for shutdown/error |
 | 9 | 2026-10-05 | `ks_includes/widgets/prompts.py` `show/end` | Macro prompts shown in-page (`ss_prompt`) so STOP is never covered |
-| 10 | 2026-10-05 | `screen.py` `notify_gcode_response` | Routine `echo:` messages are not pop-ups (still in the console). Cold-extrude warning doesn't jump to the stock panel |
-| 11 | 2026-10-05 | `screen.py` `printer_initializing`, power-update guard | `ss_starting` replaces the stock splash while Klipper starts/restarts/reconnects |
+| 10 | 2026-10-05 | `ks_includes/notification_handler.py` (import, `_gcode_response`). Was in `screen.py` before upstream v0.4.7 moved it | Routine `echo:` messages are not pop-ups (still in the console). Cold-extrude warning doesn't jump to the stock panel |
+| 11 | 2026-10-05 | `screen.py` `printer_initializing`; `ks_includes/notification_handler.py` power-update guard | `ss_starting` replaces the stock splash while Klipper starts/restarts/reconnects |
 | 12 | 2026-10-05 | `.gitignore` | Ignore `tools/starstack/.cache/` (downloaded theme sources) |
 | 13 | 2026-10-05 | `screen.py` `show_keyboard` | Touch-sized on-screen keyboard (4 rows × 44 px keys, edge margins, `.ss-keyboard` style) next to the rail |
+| 14 | 2026-10-05 | `.github/dependabot.yml` **(deleted)** | Dependabot off on the fork: it opened PRs for upstream's own dependencies. Updates arrive through the upstream sync. If a merge reports a modify/delete conflict on this file, keep it deleted |
+| 15 | 2026-10-05 | `screen.py` (before `import gi`) | On X11, don't connect to the per-login session D-Bus. Upstream v0.4.7 runs as a `Gtk.Application`, which joined `/run/user/<uid>/bus` whenever someone was logged in over SSH. When that login ended, GLib stopped KlipperScreen and the touchscreen restarted (found on the bench, D-059). Wayland is unchanged (it needs the bus for idle-inhibit) |
+| 16 | 2026-10-05 | `.github/workflows/linter.yml`, `codeql.yml` (push trigger) | Skip branch `bench`: throw-away debug builds for the bench Pi don't run CI or send failure emails |
 
 ### Files we added (never conflict)
 | # | Date | Files | What |

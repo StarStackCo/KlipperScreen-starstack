@@ -20,11 +20,17 @@ from gi.repository import Gtk, Pango
 
 THEME = "starstack"
 MATERIALS = {"PLA": (210, 60), "PETG": (240, 80), "TPU": (225, 40)}
-SPEEDS = [("Silent", 50, "SPEED_SILENT"), ("Normal", 100, "SPEED_NORMAL"),
-          ("Fast", 125, "SPEED_FAST"), ("Draft", 150, "SPEED_DRAFT")]
+SPEEDS = [
+    ("Silent", 50, "SPEED_SILENT"),
+    ("Normal", 100, "SPEED_NORMAL"),
+    ("Fast", 125, "SPEED_FAST"),
+    ("Draft", 150, "SPEED_DRAFT"),
+]
 STATE_FILE = os.path.expanduser("~/printer_data/config/.starstack_ui.json")
 PAGES = ("ss_home", "ss_print", "ss_controls", "ss_settings")
-KEYBOARD_HEIGHT = 4 * (44 + 1) + 2 + 16       # 4 rows of 44 px keys, 1 px row gap, 16 px bottom margin (hook #13)
+KEYBOARD_HEIGHT = (
+    4 * (44 + 1) + 2 + 16
+)  # 4 rows of 44 px keys, 1 px row gap, 16 px bottom margin (hook #13)
 
 
 def enabled(screen):
@@ -72,15 +78,87 @@ def gcode(screen, script, widget=None):
     screen._send_action(None, "printer.gcode.script", {"script": script})
 
 
-def loaded_material(screen):
-    """Remembered filament from Klipper save_variables (not subscribed by KlipperScreen, so query it)."""
+def request(screen, method, params, on_result):
+    """Async Moonraker request over KlipperScreen's websocket.
+    on_result(result_dict_or_None) runs on the
+    GTK main thread. (Upstream removed the blocking REST client in #1757.)"""
+
+    def done(response, *args):
+        on_result(response.get("result") if isinstance(response, dict) else None)
+        return False
+
+    if not screen._ws or not screen._ws.send_method(method, params, done):
+        on_result(None)
+
+
+def query_objects(screen, objects, on_status):
+    """printer.objects.query → on_status(status_dict, or {} on failure)."""
+    request(
+        screen,
+        "printer.objects.query",
+        {"objects": objects},
+        lambda r: on_status((r or {}).get("status", {})),
+    )
+
+
+def query_loaded_material(screen, on_material):
+    """Remembered filament from Klipper save_variables → on_material("PLA"/"PETG"/"TPU" or None)."""
+
+    def got(status):
+        var = status.get("save_variables", {}).get("variables", {}).get("loaded_material", "NONE")
+        on_material(None if str(var).upper() == "NONE" else str(var).upper())
+
+    query_objects(screen, {"save_variables": None}, got)
+
+
+def history(screen, limit, on_jobs):
+    """server.history.list (newest first) → on_jobs(list of jobs)."""
+    request(
+        screen,
+        "server.history.list",
+        {"limit": limit, "order": "desc"},
+        lambda r: on_jobs((r or {}).get("jobs", [])),
+    )
+
+
+def thumbnail(panel, filename, size, image):
+    """Fill a Gtk.Image with the file's thumbnail asynchronously (placeholder until loaded)."""
+
+    def done(pixbuf):
+        if pixbuf is not None and image.get_parent() is not None:
+            image.set_from_pixbuf(pixbuf)
+        return False
+
+    files = panel._files
+    if not files.has_thumbnail(filename):
+        if files.file_metadata_exists(filename):
+            return  # metadata loaded, the file just has no thumbnail: keep the placeholder
+        # Upstream fetches file metadata (thumbnail paths) asynchronously: wait for it to arrive
+        _thumb_waiting.setdefault(filename, []).append((panel, size, image))
+        if _thumb_metadata_arrived not in files.callbacks:  # callbacks are cleared on reconnect
+            files.add_callback(_thumb_metadata_arrived)
+        if filename not in files.files:
+            files.request_metadata(filename)
+        return
     try:
-        res = screen.apiclient.send_request("printer/objects/query?save_variables")
-        var = res["status"]["save_variables"]["variables"].get("loaded_material", "NONE")
-        return None if str(var).upper() == "NONE" else str(var).upper()
+        panel.load_image_async(filename, size, size, callback=done)
     except Exception as e:
-        logging.debug(f"StarStack: loaded_material query failed: {e}")
-        return None
+        logging.debug(f"StarStack: thumbnail failed for {filename}: {e}")
+
+
+_thumb_waiting = {}  # filename -> [(panel, size, Gtk.Image)] waiting for metadata
+
+
+def _thumb_metadata_arrived(action, data):
+    if action != "modify_file":
+        return
+    filename = (data.get("item") or {}).get("path")
+    waiting = _thumb_waiting.pop(filename, None)
+    if not waiting or not waiting[0][0]._files.has_thumbnail(filename):
+        return  # no thumbnail in this file: keep the placeholder icon
+    for panel, size, image in waiting:
+        if image.get_parent() is not None:  # page still showing this tile
+            thumbnail(panel, filename, size, image)
 
 
 def pretty_name(filename):
@@ -154,8 +232,12 @@ def label(text, css=None, xalign=0.0, wrap=False, ellipsize=False, lines=0):
 def button(text=None, sub=None, css="ss-btn", image=None, gtk=None, img_size=28, vertical=True):
     """Flat StarStack button: optional icon, main text and a small sub line."""
     b = Gtk.Button(can_focus=False, hexpand=True)
-    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL if vertical else Gtk.Orientation.HORIZONTAL,
-                  spacing=2 if vertical else 8, halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
+    box = Gtk.Box(
+        orientation=Gtk.Orientation.VERTICAL if vertical else Gtk.Orientation.HORIZONTAL,
+        spacing=2 if vertical else 8,
+        halign=Gtk.Align.CENTER,
+        valign=Gtk.Align.CENTER,
+    )
     if image and gtk:
         box.add(gtk.Image(image, img_size, img_size))
     if text is not None:
@@ -187,6 +269,7 @@ def set_class(widget, css, on):
 def debounce(owner, attr, ms, fn):
     """Run fn once, ms after the last call (used to redraw when file metadata trickles in)."""
     from gi.repository import GLib
+
     if getattr(owner, attr, None):
         GLib.source_remove(getattr(owner, attr))
 
@@ -194,6 +277,7 @@ def debounce(owner, attr, ms, fn):
         setattr(owner, attr, None)
         fn()
         return False
+
     setattr(owner, attr, GLib.timeout_add(ms, run))
 
 
@@ -230,13 +314,29 @@ def _push(screen, panel, **kwargs):
 
 def confirm(screen, title, body, yes_label, on_yes, kind="primary", no_label=None):
     """kind: primary | danger | warning"""
-    _push(screen, "ss_dialog", ss_title=title, ss_body=body, ss_yes=yes_label,
-          ss_no=no_label or _("Go back"), ss_on_yes=on_yes, ss_kind=kind)
+    _push(
+        screen,
+        "ss_dialog",
+        ss_title=title,
+        ss_body=body,
+        ss_yes=yes_label,
+        ss_no=no_label or _("Go back"),
+        ss_on_yes=on_yes,
+        ss_kind=kind,
+    )
 
 
 def info(screen, title, body):
-    _push(screen, "ss_dialog", ss_title=title, ss_body=body, ss_yes=None,
-          ss_no=_("Close"), ss_on_yes=None, ss_kind="primary")
+    _push(
+        screen,
+        "ss_dialog",
+        ss_title=title,
+        ss_body=body,
+        ss_yes=None,
+        ss_no=_("Close"),
+        ss_on_yes=None,
+        ss_kind="primary",
+    )
 
 
 def close_dialog(screen):
@@ -250,26 +350,41 @@ def adjust(screen, **kwargs):
 
 
 def bed_clear_then_print(screen, filename):
-    confirm(screen, _("Is the bed clear?"),
-            _("Remove any old print from the bed before starting") + f"\n{pretty_name(filename)}.\n"
-            + _("Printing on top of a part can damage the nozzle."),
-            _("Bed is clear, print"), lambda: screen._ws.klippy.print_start(filename),
-            no_label=_("Not yet"))
+    confirm(
+        screen,
+        _("Is the bed clear?"),
+        _("Remove any old print from the bed before starting")
+        + f"\n{pretty_name(filename)}.\n"
+        + _("Printing on top of a part can damage the nozzle."),
+        _("Bed is clear, print"),
+        lambda: screen._ws.api.print_start(filename),
+        no_label=_("Not yet"),
+    )
 
 
 def ask_estop(screen):
-    confirm(screen, _("Emergency stop?"),
-            _("Stops everything immediately: heaters, motors and any print.") + "\n"
-            + _("The print can't be resumed. Use this only if something is wrong."),
-            _("STOP NOW"), screen._ws.klippy.emergency_stop, kind="danger")
+    confirm(
+        screen,
+        _("Emergency stop?"),
+        _("Stops everything immediately: heaters, motors and any print.")
+        + "\n"
+        + _("The print can't be resumed. Use this only if something is wrong."),
+        _("STOP NOW"),
+        screen._ws.api.emergency_stop,
+        kind="danger",
+    )
 
 
 # ---------------------------------------------------------------- the rail
 class StarStackRail:
     """Replaces the stock action bar: 4 page buttons + STOP (always present, D-036)."""
 
-    NAV = (("ss_home", "main", "Home"), ("ss_print", "files", "Print"),
-           ("ss_controls", "fine-tune", "Controls"), ("ss_settings", "settings", "Settings"))
+    NAV = (
+        ("ss_home", "main", "Home"),
+        ("ss_print", "files", "Print"),
+        ("ss_controls", "fine-tune", "Controls"),
+        ("ss_settings", "settings", "Settings"),
+    )
 
     def __init__(self, base):
         self.base = base
@@ -280,7 +395,7 @@ class StarStackRail:
             bar.remove(child)
         bar.set_size_request(64, -1)
         bar.set_spacing(0)
-        bar.set_homogeneous(True)            # 5 equal slots down the rail: icons evenly spaced
+        bar.set_homogeneous(True)  # 5 equal slots down the rail: icons evenly spaced
         bar.get_style_context().add_class("ss-rail")
         size = 24
         self.nav = {}
@@ -307,8 +422,12 @@ class StarStackRail:
             slot(b, 48, 44)
             self.nav[page] = b
         self.stop = Gtk.Button(can_focus=False)
-        stop_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1,
-                           halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
+        stop_box = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=1,
+            halign=Gtk.Align.CENTER,
+            valign=Gtk.Align.CENTER,
+        )
         stop_img = gtk.Image("emergency", 20, 20)
         stop_img.set_halign(Gtk.Align.CENTER)
         stop_box.pack_start(stop_img, False, False, 0)
@@ -319,7 +438,8 @@ class StarStackRail:
         slot(self.stop, 52, 52)
         self.update_stop()
         self._contain_content(base)
-        from ks_includes import starstack_devtools   # bench-only, inactive without ~/.starstack_dev
+        from ks_includes import starstack_devtools  # bench-only, inactive without ~/.starstack_dev
+
         starstack_devtools.start(self.screen)
 
     @staticmethod
@@ -329,23 +449,55 @@ class StarStackRail:
         grid = base.main_grid
         if base.content.get_parent() is not grid:
             return
+        left = grid.child_get_property(base.content, "left-attach")
+        top = grid.child_get_property(base.content, "top-attach")
         grid.remove(base.content)
         scroller = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
         scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroller.set_propagate_natural_height(False)
         scroller.get_style_context().add_class("ss-content-guard")
         scroller.add(base.content)
-        grid.attach(scroller, 1, 1, 1, 1)
+        grid.attach(scroller, left, top, 1, 1)
+        scroller.show_all()
+
+    @staticmethod
+    def uncontain_content(base):
+        """Undo _contain_content so upstream's _reconfigure_main_grid can remove/re-attach
+        base.content directly (hook #7). The scroller wraps content in an automatic Viewport."""
+        viewport = base.content.get_parent()
+        if viewport is None or viewport is base.main_grid:
+            return
+        scroller = viewport.get_parent() if isinstance(viewport, Gtk.Viewport) else viewport
+        viewport.remove(base.content)
+        if scroller.get_parent() is base.main_grid:
+            base.main_grid.remove(scroller)
+        # upstream removes content from main_grid next; give it something to remove
+        base.main_grid.attach(base.content, 1, 1, 1, 1)
+
+    def after_grid_rebuild(self, base):
+        """Hook #7: upstream rebuilt the grid with its own action-bar size; restore the rail
+        width and the STOP-safety content guard."""
+        base.action_bar.set_size_request(64, -1)
+        self._contain_content(base)
 
     def go(self, widget, page):
-        if self.screen._cur_panels and self.screen._cur_panels[0] == page and len(self.screen._cur_panels) == 1:
+        if (
+            self.screen._cur_panels
+            and self.screen._cur_panels[0] == page
+            and len(self.screen._cur_panels) == 1
+        ):
             return
         self.screen.show_panel(page, remove_all=True)
 
     def on_panel(self, panel_name):
         root = self.screen._cur_panels[0] if self.screen._cur_panels else panel_name
         ready = self.screen.printer is not None and self.screen.printer.state not in (
-            "disconnected", "startup", "shutdown", "error", None)
+            "disconnected",
+            "startup",
+            "shutdown",
+            "error",
+            None,
+        )
         for page, b in self.nav.items():
             set_class(b, "ss-rail-active", page == root)
             b.set_sensitive(ready)

@@ -9,11 +9,17 @@ import gi
 
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk
-from ks_includes.screen_panel import ScreenPanel
-from ks_includes import starstack as ss
 
-COLORS = {"command": "#88D8F2", "error": "#FF6467", "response": "#FAFAFA", "warning": "#FF8904",
-          "time": "#A1A1A1"}
+from ks_includes import starstack as ss
+from ks_includes.screen_panel import ScreenPanel
+
+COLORS = {
+    "command": "#88D8F2",
+    "error": "#FF6467",
+    "response": "#FAFAFA",
+    "warning": "#FF8904",
+    "time": "#A1A1A1",
+}
 
 
 class Panel(ScreenPanel):
@@ -42,7 +48,12 @@ class Panel(ScreenPanel):
         page.pack_start(row, False, False, 0)
 
         self.buffer = Gtk.TextBuffer()
-        view = Gtk.TextView(buffer=self.buffer, editable=False, cursor_visible=False, wrap_mode=Gtk.WrapMode.WORD_CHAR)
+        view = Gtk.TextView(
+            buffer=self.buffer,
+            editable=False,
+            cursor_visible=False,
+            wrap_mode=Gtk.WrapMode.WORD_CHAR,
+        )
         view.get_style_context().add_class("ss-console-output")
         self.scroll = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
         self.scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
@@ -58,7 +69,7 @@ class Panel(ScreenPanel):
 
     def add(self, kind, when, message):
         if kind != "command" and re.match(r"^(?:ok\s+)?(B|C|T\d*):", message):
-            return                                   # temperature reports
+            return  # temperature reports
         color = COLORS["command"] if kind == "command" else COLORS["response"]
         if message.startswith("!!"):
             color, message = COLORS["error"], message[3:]
@@ -66,9 +77,12 @@ class Panel(ScreenPanel):
             color, message = COLORS["warning"], message[3:]
         message = GLib.markup_escape_text(message)
         stamp = datetime.fromtimestamp(when).strftime("%H:%M:%S")
-        self.buffer.insert_markup(self.buffer.get_end_iter(),
-                                  f'\n<span color="{COLORS["time"]}">{stamp}</span> '
-                                  f'<span color="{color}">{message}</span>', -1)
+        self.buffer.insert_markup(
+            self.buffer.get_end_iter(),
+            f'\n<span color="{COLORS["time"]}">{stamp}</span> '
+            f'<span color="{color}">{message}</span>',
+            -1,
+        )
         if self.buffer.get_line_count() > 500:
             self.buffer.delete(self.buffer.get_iter_at_line(0), self.buffer.get_iter_at_line(1))
 
@@ -79,7 +93,7 @@ class Panel(ScreenPanel):
         self.entry.set_text("")
         self._screen.remove_keyboard()
         self.add("command", time.time(), cmd)
-        self._screen._ws.klippy.gcode_script(cmd)
+        self._screen._ws.api.gcode_script(cmd)
 
     def _history(self, result, method, params):
         for r in result.get("result", {}).get("gcode_store", []):
