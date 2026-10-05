@@ -3,7 +3,8 @@
 #          (Settings › Secrets and variables › Actions › Variables). Manual runs from the Actions tab always work.
 # What it does: mirrors upstream KlipperScreen master into our `master`, pushes it to branch `upstream-sync`, then
 # opens a pull request into `dev`. The org blocks workflows from opening PRs/issues, so instead the run
-# shows a one-click link and is marked FAILED on purpose (GitHub emails failed runs): red = updates waiting. Conflicts can only be inside STARSTACK-CHANGE blocks. Nothing reaches printers until
+# shows a one-click link and is marked FAILED on purpose (GitHub emails failed runs): red = updates waiting.
+# Conflicts can only be inside STARSTACK-CHANGE blocks. Nothing reaches printers until
 # dev → starstack is merged after bench tests.
 name: starstack-upstream-sync
 on:
