@@ -1653,6 +1653,16 @@ def main():
     functions.setup_logging(os.path.normpath(os.path.expanduser(args.logfile)))
     functions.patch_threading_excepthook()
 
+    # STARSTACK-CHANGE #15 BEGIN: survive the session D-Bus going away. Gtk.Application joins the
+    # session bus in /run/user/<uid> when one exists (e.g. while someone is logged in over SSH);
+    # when that login ends the bus closes and GLib's default exit-on-close quits KlipperScreen.
+    try:
+        from gi.repository import Gio
+
+        Gio.bus_get_sync(Gio.BusType.SESSION, None).set_exit_on_close(False)
+    except Exception as e:  # no session bus: nothing to protect against
+        logging.debug(f"StarStack: no session bus ({e})")
+    # STARSTACK-CHANGE #15 END
     app = KlipperScreenApplication(args)
     app.run()
 

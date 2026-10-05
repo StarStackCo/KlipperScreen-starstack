@@ -32,7 +32,7 @@ It can always be run by hand from the Actions tab.
 ```bash
 git fetch upstream
 git checkout master && git merge --ff-only upstream/master && git push origin master
-git checkout dev && git merge master        # conflicts can only be inside STARSTACK-CHANGE blocks (#2-#14)
+git checkout dev && git merge master        # conflicts can only be inside STARSTACK-CHANGE blocks (#2-#15)
 python tools/starstack/check_markers.py     # every block still balanced and listed
 git push origin dev                          # then bench-test, then PR dev → starstack
 ```
@@ -54,7 +54,7 @@ After merging a new upstream base, update `tools/starstack/UPSTREAM_BASE` to the
 When merging upstream: conflicts can only happen inside `STARSTACK-CHANGE` blocks. Re-apply the block's intent on top of the new upstream code and keep the same `#n`.
 
 ## Change list
-Numbers **2–14** are edits inside upstream KlipperScreen files: the code carries
+Numbers **2–15** are edits inside upstream KlipperScreen files: the code carries
 `STARSTACK-CHANGE #n BEGIN/END` markers with the same number. Numbers **20+** are files we added
 (each starts with a `STARSTACK-ADDED` note). `python tools/starstack/check_markers.py` verifies this.
 
@@ -73,6 +73,7 @@ Numbers **2–14** are edits inside upstream KlipperScreen files: the code carri
 | 12 | 2026-10-05 | `.gitignore` | Ignore `tools/starstack/.cache/` (downloaded theme sources) |
 | 13 | 2026-10-05 | `screen.py` `show_keyboard` | Touch-sized on-screen keyboard (4 rows × 44 px keys, edge margins, `.ss-keyboard` style) next to the rail |
 | 14 | 2026-10-05 | `.github/dependabot.yml` **(deleted)** | Dependabot off on the fork: it opened PRs for upstream's own dependencies. Updates arrive through the upstream sync. If a merge reports a modify/delete conflict on this file, keep it deleted |
+| 15 | 2026-10-05 | `screen.py` `main()` | Keep running when the session D-Bus closes. Upstream v0.4.7 runs as a `Gtk.Application`, which joins the user's session bus if one exists (e.g. someone is logged in over SSH). When that login ends, GLib quit KlipperScreen and the screen restarted (found on the bench, D-059) |
 
 ### Files we added (never conflict)
 | # | Date | Files | What |
