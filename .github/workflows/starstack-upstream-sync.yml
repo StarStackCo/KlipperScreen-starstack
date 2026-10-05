@@ -1,9 +1,11 @@
 # STARSTACK-ADDED: optional weekly upstream sync (FORK_CHANGES.md #33)
 # SETTING: repository variable UPSTREAM_SYNC_ENABLED = "true" turns the weekly run on, anything else turns it off.
 #          (Settings › Secrets and variables › Actions › Variables). Manual runs from the Actions tab always work.
-# What it does: mirrors upstream KlipperScreen master into our `master`, then opens (or refreshes) a pull
-# request `upstream-sync` → `dev`. GitHub shows any conflicts in the PR; they can only be inside
-# STARSTACK-CHANGE blocks. Nothing reaches printers until dev → starstack is merged after bench tests.
+# What it does: mirrors upstream KlipperScreen master into our `master`, pushes it to branch `upstream-sync`, then
+# opens a pull request into `dev`. The org blocks workflows from opening PRs/issues, so instead the run
+# shows a one-click link and is marked FAILED on purpose (GitHub emails failed runs): red = updates waiting.
+# Conflicts can only be inside STARSTACK-CHANGE blocks. Nothing reaches printers until
+# dev → starstack is merged after bench tests.
 name: starstack-upstream-sync
 on:
   schedule:
@@ -43,8 +45,21 @@ jobs:
           git push origin --tags
           git push origin upstream/master:refs/heads/upstream-sync --force
           BODY=$(printf 'New upstream KlipperScreen commits (newest first):\n\n```\n%s\n```\n\n**Before merging:** resolve conflicts (only inside `STARSTACK-CHANGE` blocks), run `python tools/starstack/check_markers.py`, bench-test from `dev`, then update `tools/starstack/UPSTREAM_BASE`.\n' "$(cat /tmp/commits.txt)")
+          COMPARE="https://github.com/${GITHUB_REPOSITORY}/compare/dev...upstream-sync?expand=1"
           if gh pr list --head upstream-sync --base dev --state open --json number --jq '.[0].number' | grep -q .; then
             echo "PR already open; branch refreshed"
+          elif gh pr create --head upstream-sync --base dev --title "Upstream KlipperScreen sync $(date +%Y-%m-%d)" --body "$BODY"; then
+            echo "PR opened"
           else
-            gh pr create --head upstream-sync --base dev --title "Upstream KlipperScreen sync $(date +%Y-%m-%d)" --body "$BODY"
+            # The StarStackCo org doesn't let workflows open PRs or issues. Leave a summary with a one-click
+            # link and fail the run on purpose: GitHub emails a failed run, so red = "updates waiting".
+            {
+              echo "## Upstream KlipperScreen update available"
+              echo ""
+              echo "$BODY"
+              echo ""
+              echo "**Create the pull request:** $COMPARE"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Upstream updates waiting::Open $COMPARE to create the pull request into dev"
+            exit 1
           fi
