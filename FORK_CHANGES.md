@@ -98,3 +98,4 @@ Numbers **2–16** are edits inside upstream KlipperScreen files: the code carri
 | 33 | 2026-10-05 | `.github/workflows/starstack-ci.yml`, `starstack-upstream-sync.yml` | CI checks + optional weekly upstream merge PR |
 | 34 | 2026-10-05 | `TRADEMARKS.md` | StarStack name/logo are not covered by the AGPL license |
 | 35 | 2026-10-05 | `panels/ss_console.py` | Console with the command box at the top (stock one has it at the bottom edge); opened from Settings › Advanced |
+| 36 | 2026-10-05 | `panels/ss_network.py` | StarStack Wi-Fi page (klipper-ui B-6): one row per network, tap to connect, password with the StarStack keyboard, Disconnect/Forget in `ss_dialog` (now with an optional third button). Upstream's `sdbus_nm` backend unchanged; enterprise Wi-Fi via the stock page |

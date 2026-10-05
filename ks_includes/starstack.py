@@ -312,8 +312,18 @@ def _push(screen, panel, **kwargs):
     screen.show_panel(panel, **kwargs)
 
 
-def confirm(screen, title, body, yes_label, on_yes, kind="primary", no_label=None):
-    """kind: primary | danger | warning"""
+def confirm(
+    screen,
+    title,
+    body,
+    yes_label,
+    on_yes,
+    kind="primary",
+    no_label=None,
+    alt_label=None,
+    on_alt=None,
+):
+    """kind: primary | danger | warning. alt_label/on_alt: optional third (outline) button."""
     _push(
         screen,
         "ss_dialog",
@@ -323,6 +333,8 @@ def confirm(screen, title, body, yes_label, on_yes, kind="primary", no_label=Non
         ss_no=no_label or _("Go back"),
         ss_on_yes=on_yes,
         ss_kind=kind,
+        ss_alt=alt_label,
+        ss_on_alt=on_alt,
     )
 
 

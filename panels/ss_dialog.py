@@ -21,10 +21,13 @@ class Panel(ScreenPanel):
         ss_no=None,
         ss_on_yes=None,
         ss_kind="primary",
+        ss_alt=None,
+        ss_on_alt=None,
         **kwargs,
     ):
         super().__init__(screen, title)
         self.on_yes = ss_on_yes
+        self.on_alt = ss_on_alt
         for child in self.content.get_children():
             self.content.remove(child)
 
@@ -43,10 +46,14 @@ class Panel(ScreenPanel):
         card.add(ss.label(ss_title, title_css.get(ss_kind, "ss-dialog-title"), wrap=True))
         card.add(ss.label(ss_body, "ss-dialog-body", wrap=True))
 
-        row = ss.grid(2 if ss_yes else 1, spacing=8)
+        row = ss.grid(1 + bool(ss_yes) + bool(ss_alt), spacing=8)
         no = ss.button(ss_no or _("Go back"), css="ss-btn ss-btn-outline ss-btn-lg")
         no.connect("clicked", self.close)
         widgets = [no]
+        if ss_alt:
+            alt = ss.button(ss_alt, css="ss-btn ss-btn-outline ss-btn-lg")
+            alt.connect("clicked", self.accept_alt)
+            widgets.append(alt)
         if ss_yes:
             yes_css = {
                 "danger": "ss-btn ss-btn-danger ss-btn-lg",
@@ -68,6 +75,12 @@ class Panel(ScreenPanel):
 
     def accept(self, *args):
         cb = self.on_yes
+        self.close()
+        if cb:
+            cb()
+
+    def accept_alt(self, *args):
+        cb = self.on_alt
         self.close()
         if cb:
             cb()

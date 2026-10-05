@@ -97,7 +97,7 @@ class Panel(ScreenPanel):
         self.list.add(ss.label(_("PRINTER"), "ss-section"))
         lock = " · " + _("locked while printing") if printing else ""
         for name, note, cb, ok in [
-            (_("Wi-Fi"), "", lambda: self.open("network", _("Network")), True),
+            (_("Wi-Fi"), "", lambda: self.open("ss_network", _("Wi-Fi")), True),
             (
                 _("Screen & language"),
                 _("brightness, sleep, 24 h"),
