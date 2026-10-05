@@ -64,6 +64,8 @@ class Panel(ScreenPanel):
         page.add(actions)
         self.content.add(page)
         self.content.show_all()
+        for w in (self.mats, self.bar_box, self.alt_btn, self.next_btn):
+            w.set_no_show_all(True)   # visibility is controlled by render(), not by show_all()
         if self.step == "heat":
             self.start_heat()
         self.render()
@@ -180,6 +182,9 @@ class Panel(ScreenPanel):
     def process_update(self, action, data):
         if action == "notify_status_update" and "extruder" in data:
             self.update_temp()
+
+    def activate(self):
+        self.render()      # KlipperScreen re-shows the whole page after attaching; re-apply visibility
 
     def back(self):
         self.cancel(None)

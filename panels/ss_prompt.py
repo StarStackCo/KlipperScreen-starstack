@@ -33,7 +33,10 @@ class Panel(ScreenPanel):
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scroll.set_vexpand(True)
         scroll.add(box)
-        card.pack_start(scroll, True, True, 0)
+        if box.get_children():            # macro-defined buttons
+            card.pack_start(scroll, True, True, 0)
+        else:
+            card.pack_start(Gtk.Box(vexpand=True), True, True, 0)
         if ss_prompt.buttons:
             row = ss.grid(len(ss_prompt.buttons), spacing=8)
             btns = []

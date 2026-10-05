@@ -299,8 +299,24 @@ class StarStackRail:
         self.stop.connect("clicked", lambda *a: ask_estop(self.screen))
         bar.pack_end(self.stop, False, False, 0)
         self.update_stop()
+        self._contain_content(base)
         from ks_includes import starstack_devtools   # bench-only, inactive without ~/.starstack_dev
         starstack_devtools.start(self.screen)
+
+    @staticmethod
+    def _contain_content(base):
+        """SAFETY: wrap the page area in a scroller so no page can make the window taller than
+        the screen (which would push STOP off the bottom). A too-tall page scrolls instead."""
+        grid = base.main_grid
+        if base.content.get_parent() is not grid:
+            return
+        grid.remove(base.content)
+        scroller = Gtk.ScrolledWindow(hexpand=True, vexpand=True)
+        scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroller.set_propagate_natural_height(False)
+        scroller.get_style_context().add_class("ss-content-guard")
+        scroller.add(base.content)
+        grid.attach(scroller, 1, 1, 1, 1)
 
     def go(self, widget, page):
         if self.screen._cur_panels and self.screen._cur_panels[0] == page and len(self.screen._cur_panels) == 1:

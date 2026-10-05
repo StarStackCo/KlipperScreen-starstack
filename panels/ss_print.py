@@ -49,7 +49,7 @@ class Panel(ScreenPanel):
 
     def files(self):
         items = [f for f in self._files.files.values() if f.get("path", "").lower().endswith(".gcode")
-                 and not f["path"].startswith("ss_bench_test")]
+                 and not f["path"].startswith("ss_bench")]
         if self.sort == 2:
             order = {}
             try:

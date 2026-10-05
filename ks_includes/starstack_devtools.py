@@ -80,4 +80,19 @@ def _run(screen, cmd):
         return f"not found: {arg} | panels: {' > '.join(screen._cur_panels)}"
     if verb == "where":
         return " > ".join(screen._cur_panels)
+    if verb == "sizes":      # who is asking for more height than the screen has?
+        lines = [f"window {screen.get_allocated_width()}x{screen.get_allocated_height()} "
+                 f"screen {screen.width}x{screen.height}"]
+
+        def walk(w, depth):
+            if depth > 7 or not w.get_visible():
+                return
+            mn, nat = w.get_preferred_height()
+            lines.append(f"{'  ' * depth}{type(w).__name__} {' '.join(w.get_style_context().list_classes())} "
+                         f"min_h={mn} nat_h={nat} alloc_h={w.get_allocated_height()}")
+            if isinstance(w, Gtk.Container):
+                for c in w.get_children():
+                    walk(c, depth + 1)
+        walk(screen.base_panel.main_grid, 0)
+        return "\n".join(lines[:80])
     return f"unknown: {cmd}"

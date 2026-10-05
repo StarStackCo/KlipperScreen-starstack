@@ -364,3 +364,13 @@ button.ss-stop-idle box { opacity: 0.55; }
 .ss-stop-text { font-size: 10px; font-weight: 900; color: #FFFFFF; }
 .ss-switch-on, .ss-switch-off { padding: 0; }
 button.ss-tile .ss-tile-title { margin-top: 2px; }
+button.ss-btn-step { background-color: @surface-2; border: 1px solid @lines; }
+button.ss-btn-step .ss-btn-text { font-size: 16px; }
+button.ss-btn-close { min-width: 40px; min-height: 40px; }
+.ss-pct.ss-text-warning { color: @warning; }
+.ss-stopped { background-color: #180808; }
+.ss-stopped-title { font-size: 20px; font-weight: 900; color: @error-text; }
+.ss-stopped-body { font-size: 14px; color: @text; }
+button.ss-btn-white { background-color: @text; }
+button.ss-btn-white label { color: @bg; font-weight: 900; }
+.ss-content-guard, .ss-content-guard viewport { background-color: @bg; border: 0; }

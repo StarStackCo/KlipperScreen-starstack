@@ -755,6 +755,11 @@ class KlipperScreen(Gtk.Window):
         self._init_printer(_("Klipper has disconnected"), go_to_splash=True)
 
     def state_error(self):
+        # STARSTACK-CHANGE #8 BEGIN: plain "Printer error" screen instead of the splash
+        if starstack.enabled(self):
+            self._ss_stopped("error", self.printer.get_stat("webhooks", "state_message"))
+            return
+        # STARSTACK-CHANGE #8 END
         msg = _("Klipper has encountered an error.") + "\n"
         state = self.printer.get_stat("webhooks", "state_message")
         if "FIRMWARE_RESTART" in state:
@@ -798,10 +803,26 @@ class KlipperScreen(Gtk.Window):
         # STARSTACK-CHANGE #8 END
         self.show_panel("main_menu", remove_all=True, items=self._config.get_menu_items("__main"))
 
+    # STARSTACK-CHANGE #8 BEGIN: helper for the StarStack stopped screen
+    def _ss_stopped(self, kind, msg):
+        if "ss_stopped" in self.panels:
+            self.panels_reinit = list(set(getattr(self, "panels_reinit", []) + ["ss_stopped"]))
+        if self._cur_panels and self._cur_panels[-1] == "ss_stopped":
+            self._remove_all_panels()
+        self.show_panel("ss_stopped", remove_all=True, ss_kind=kind, ss_msg=msg or "")
+        self.log_notification(msg or kind, 0)
+    # STARSTACK-CHANGE #8 END
+
     def state_startup(self):
         self.printer_initializing(_("Klipper is attempting to start"))
 
     def state_shutdown(self):
+        # STARSTACK-CHANGE #8 BEGIN: plain "Printer stopped" screen instead of the splash
+        if starstack.enabled(self):
+            self.printer.stop_tempstore_updates()
+            self._ss_stopped("shutdown", self.printer.get_stat("webhooks", "state_message"))
+            return
+        # STARSTACK-CHANGE #8 END
         self.printer.stop_tempstore_updates()
         msg = self.printer.get_stat("webhooks", "state_message")
         self.printer_initializing(_("Klipper has shutdown") + "\n\n" + msg, go_to_splash=True)
