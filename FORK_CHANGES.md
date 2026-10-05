@@ -10,6 +10,7 @@ Design/plan docs live in the separate repo `StarStackCo/klipper-ui`.
 | `origin` remote | `StarStackCo/KlipperScreen-starstack` (public) |
 | `master` | Mirror of upstream `master`. **Never commit here** |
 | `dev` | **Work happens here.** Bench-tested with `klipper-ui/scripts/ks-update.sh --branch dev` |
+| `bench` | Throw-away debug builds for the bench Pi (`ks-update.sh --branch bench`). No CI runs on it and it's never merged. **Debug commits go here, never on `dev`** |
 | `starstack` | **Stable.** What printers install through Mainsail's update manager. Only updated by a pull request from `dev` after the bench checklist passes |
 
 **Base:** upstream `f2eb6919` (v0.4.7-196, merged 2026-10-05), recorded in `tools/starstack/UPSTREAM_BASE`.
@@ -32,7 +33,7 @@ It can always be run by hand from the Actions tab.
 ```bash
 git fetch upstream
 git checkout master && git merge --ff-only upstream/master && git push origin master
-git checkout dev && git merge master        # conflicts can only be inside STARSTACK-CHANGE blocks (#2-#15)
+git checkout dev && git merge master        # conflicts can only be inside STARSTACK-CHANGE blocks (#2-#16)
 python tools/starstack/check_markers.py     # every block still balanced and listed
 git push origin dev                          # then bench-test, then PR dev → starstack
 ```
@@ -54,7 +55,7 @@ After merging a new upstream base, update `tools/starstack/UPSTREAM_BASE` to the
 When merging upstream: conflicts can only happen inside `STARSTACK-CHANGE` blocks. Re-apply the block's intent on top of the new upstream code and keep the same `#n`.
 
 ## Change list
-Numbers **2–15** are edits inside upstream KlipperScreen files: the code carries
+Numbers **2–16** are edits inside upstream KlipperScreen files: the code carries
 `STARSTACK-CHANGE #n BEGIN/END` markers with the same number. Numbers **20+** are files we added
 (each starts with a `STARSTACK-ADDED` note). `python tools/starstack/check_markers.py` verifies this.
 
@@ -74,6 +75,7 @@ Numbers **2–15** are edits inside upstream KlipperScreen files: the code carri
 | 13 | 2026-10-05 | `screen.py` `show_keyboard` | Touch-sized on-screen keyboard (4 rows × 44 px keys, edge margins, `.ss-keyboard` style) next to the rail |
 | 14 | 2026-10-05 | `.github/dependabot.yml` **(deleted)** | Dependabot off on the fork: it opened PRs for upstream's own dependencies. Updates arrive through the upstream sync. If a merge reports a modify/delete conflict on this file, keep it deleted |
 | 15 | 2026-10-05 | `screen.py` `main()` | Keep running when the session D-Bus closes. Upstream v0.4.7 runs as a `Gtk.Application`, which joins the user's session bus if one exists (e.g. someone is logged in over SSH). When that login ends, GLib quit KlipperScreen and the screen restarted (found on the bench, D-059) |
+| 16 | 2026-10-05 | `.github/workflows/linter.yml`, `codeql.yml` (push trigger) | Skip branch `bench`: throw-away debug builds for the bench Pi don't run CI or send failure emails |
 
 ### Files we added (never conflict)
 | # | Date | Files | What |

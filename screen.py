@@ -1663,31 +1663,8 @@ def main():
     except Exception as e:  # no session bus: nothing to protect against
         logging.debug(f"StarStack: no session bus ({e})")
     # STARSTACK-CHANGE #15 END
-    import atexit, signal, threading  # TEMP D-059 debug
-    signal.pthread_sigmask(signal.SIG_BLOCK, [signal.SIGTERM])
-    def _who():
-        info = signal.sigwaitinfo([signal.SIGTERM])
-        try:
-            cmd = open(f"/proc/{info.si_pid}/cmdline").read().replace(chr(0), " ")
-            cg = open(f"/proc/{info.si_pid}/cgroup").read().strip()
-        except Exception as e:
-            cmd, cg = f"? {e}", "?"
-        logging.warning(f"SSDBG SIGTERM from pid={info.si_pid} uid={info.si_uid} code={info.si_code} cmd={cmd} cg={cg}")
-        os._exit(0)
-    threading.Thread(target=_who, daemon=True).start()
-    atexit.register(lambda: logging.warning("SSDBG atexit"))
-    for _s in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT, signal.SIGPIPE):
-        signal.signal(_s, lambda n, f: (logging.warning(f"SSDBG signal {n}"), sys.exit(0)))
-    def _bus_closed(conn, remote, err):
-        logging.warning(f"SSDBG session bus closed remote={remote} err={err}")
-    try:
-        from gi.repository import Gio as _Gio
-        _Gio.bus_get_sync(_Gio.BusType.SESSION, None).connect("closed", _bus_closed)
-    except Exception as e:
-        logging.warning(f"SSDBG no bus {e}")
     app = KlipperScreenApplication(args)
-    rc = app.run()
-    logging.warning(f"SSDBG app.run returned {rc}")
+    app.run()
 
 
 if __name__ == "__main__":

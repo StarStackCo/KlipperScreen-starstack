@@ -1,6 +1,9 @@
 name: Verify Code Formatting
 on:
   push:
+    # STARSTACK-CHANGE #16 BEGIN: no CI (and no failure emails) for bench-only debug builds
+    branches-ignore: [bench]
+    # STARSTACK-CHANGE #16 END
     paths-ignore:
       - 'docs/**'
       - 'ks_includes/locales/**'
