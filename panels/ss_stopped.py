@@ -41,12 +41,14 @@ class Panel(ScreenPanel):
         scroll.set_vexpand(True)
         scroll.add(self.details)
         page.pack_start(scroll, True, True, 0)
-        self.details.set_no_show_all(True)
+        spacer = Gtk.Box(vexpand=True)  # keeps the buttons at the bottom while details are hidden
+        page.pack_start(spacer, True, True, 0)
+        scroll.set_no_show_all(True)  # no empty dark box until Details is tapped
         row = Gtk.Box(spacing=8, homogeneous=False)
         more = ss.button(_("Details"), css="ss-btn ss-btn-outline ss-btn-action")
         more.set_hexpand(False)
         more.set_size_request(110, -1)
-        more.connect("clicked", lambda w: self.details.set_visible(not self.details.get_visible()))
+        more.connect("clicked", self.toggle_details, scroll, spacer)
         restart = ss.button(_("Restart printer"), css="ss-btn ss-btn-white ss-btn-action")
         restart.connect("clicked", self.ask_restart)
         row.pack_start(more, False, False, 0)
@@ -54,6 +56,15 @@ class Panel(ScreenPanel):
         page.add(row)
         self.content.add(page)
         self.content.show_all()
+
+    @staticmethod
+    def toggle_details(widget, scroll, spacer):
+        show = not scroll.get_visible()
+        if show:
+            scroll.show_all()
+        else:
+            scroll.hide()
+        spacer.set_visible(not show)
 
     def ask_restart(self, *args):
         ss.confirm(
