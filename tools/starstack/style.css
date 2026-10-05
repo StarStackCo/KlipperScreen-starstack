@@ -388,3 +388,7 @@ button.ss-btn-white label { color: @bg; font-weight: 900; }
 .ss-keyboard button.keyboard_pad label { font-size: 15px; font-weight: 700; }
 .ss-keyboard button.keyboard_pad.active,
 .ss-keyboard button.keyboard_pad:active { background-color: @primary; }
+/* Scroll areas inside pages may shrink when the keyboard is open (slider stays wide for touch) */
+.ss-content-guard scrolledwindow scrollbar trough,
+.ss-content-guard scrolledwindow scrollbar { min-height: 0; }
+.ss-content-guard scrolledwindow scrollbar slider { min-height: 16px; }
