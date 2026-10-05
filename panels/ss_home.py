@@ -452,7 +452,8 @@ class Panel(ScreenPanel):
         # Alternate every 4 s between "Color change in X" and "X left" (files with color changes)
         eta = None if paused else self.color_change_eta(fn, pos, dur)
         if eta is not None and self.phase:
-            parts.append(_("Color change in") + " " + ss.fmt_duration(eta))
+            soon = _("under 1 min") if eta < 60 else ss.fmt_duration(eta)
+            parts.append(_("Color change in") + " " + soon)
         elif progress > 0.02 and dur > 0:
             parts.append(ss.fmt_duration(dur / progress - dur) + " " + _("left"))
         self.job_line.set_text(" · ".join(parts))
