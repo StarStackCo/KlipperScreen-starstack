@@ -899,7 +899,10 @@ class KlipperScreen(Gtk.Window):
         elif action == "notify_power_changed":
             logging.debug("Power status changed: %s", data)
             self.printer.process_power_update(data)
-            self.panels['splash_screen'].check_power_status()
+            # STARSTACK-CHANGE #11 BEGIN: the stock splash may never be loaded in StarStack mode
+            if 'splash_screen' in self.panels:
+                self.panels['splash_screen'].check_power_status()
+            # STARSTACK-CHANGE #11 END
         elif action == "notify_gcode_response" and self.printer.state not in ["error", "shutdown"]:
             if re.match('^(?:ok\\s+)?(B|C|T\\d*):', data):
                 return
@@ -1061,6 +1064,16 @@ class KlipperScreen(Gtk.Window):
                 GLib.timeout_add(150, self.gtk.Button_busy, x, False)
 
     def printer_initializing(self, msg, go_to_splash=False):
+        # STARSTACK-CHANGE #11 BEGIN: StarStack "Starting printer…" screen instead of the stock splash
+        if starstack.enabled(self):
+            if not self._cur_panels or self._cur_panels[-1] != "ss_starting" or go_to_splash:
+                if "ss_starting" not in self._cur_panels:
+                    self.show_panel("ss_starting", remove_all=True)
+            if "ss_starting" in self.panels:
+                self.panels["ss_starting"].update_text(msg)
+            self.log_notification(msg, 0)
+            return
+        # STARSTACK-CHANGE #11 END
         if 'splash_screen' not in self.panels or go_to_splash:
             self.show_panel("splash_screen", remove_all=True)
         self.panels['splash_screen'].update_text(msg)

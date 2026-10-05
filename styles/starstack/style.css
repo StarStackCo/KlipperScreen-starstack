@@ -374,3 +374,5 @@ button.ss-btn-close { min-width: 40px; min-height: 40px; }
 button.ss-btn-white { background-color: @text; }
 button.ss-btn-white label { color: @bg; font-weight: 900; }
 .ss-content-guard, .ss-content-guard viewport { background-color: @bg; border: 0; }
+.ss-logo-plate { background-color: #F8F8F8; border-radius: 10px; padding: 12px 18px; }
+.ss-starting-title { font-size: 16px; font-weight: 800; }
