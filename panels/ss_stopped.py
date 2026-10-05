@@ -61,6 +61,7 @@ class Panel(ScreenPanel):
     def toggle_details(widget, scroll, spacer):
         show = not scroll.get_visible()
         if show:
+            scroll.set_no_show_all(False)  # show_all() skips widgets marked no_show_all
             scroll.show_all()
         else:
             scroll.hide()
