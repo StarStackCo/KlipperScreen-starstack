@@ -93,3 +93,4 @@ Numbers **2–12** are edits inside upstream KlipperScreen files: the code carri
 | 32 | 2026-10-05 | `tools/starstack/` | Theme source (`style.css`, `brand/`), `build_theme.py` (pinned downloads), `check_markers.py`, `UPSTREAM_BASE` |
 | 33 | 2026-10-05 | `.github/workflows/starstack-ci.yml`, `starstack-upstream-sync.yml` | CI checks + optional weekly upstream merge PR |
 | 34 | 2026-10-05 | `TRADEMARKS.md` | StarStack name/logo are not covered by the AGPL license |
+| 35 | 2026-10-05 | `panels/ss_console.py` | Console with the command box at the top (stock one has it at the bottom edge); opened from Settings › Advanced |

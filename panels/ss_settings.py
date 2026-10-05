@@ -42,15 +42,19 @@ class Panel(ScreenPanel):
         self.list.add(ss.label(_("Settings"), "ss-page-title"))
 
         sw = Gtk.Button(can_focus=False, hexpand=True)
-        box = Gtk.Box(spacing=10)
-        txt = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box = Gtk.Box(spacing=10, valign=Gtk.Align.CENTER)
+        txt = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, valign=Gtk.Align.CENTER)
         txt.add(ss.label(_("Advanced mode"), "ss-row-title"))
         txt.add(ss.label(_("Pressure advance, extrude, macros, console, limits"), "ss-btn-sub", ellipsize=True))
         box.pack_start(txt, True, True, 0)
-        track = Gtk.Box(valign=Gtk.Align.CENTER)
-        track.set_size_request(46, 26)
+        # Switch pill: fixed size, text centered in it
+        track = Gtk.Box(valign=Gtk.Align.CENTER, halign=Gtk.Align.END)
+        track.set_size_request(56, 28)
         track.get_style_context().add_class("ss-switch-on" if adv else "ss-switch-off")
-        track.add(ss.label(_("ON") if adv else _("OFF"), "ss-switch-text", xalign=0.5))
+        state = ss.label(_("ON") if adv else _("OFF"), "ss-switch-text", xalign=0.5)
+        state.set_halign(Gtk.Align.CENTER)
+        state.set_valign(Gtk.Align.CENTER)
+        track.set_center_widget(state)
         box.pack_end(track, False, False, 0)
         sw.add(box)
         sw.get_style_context().add_class("ss-btn")
@@ -64,7 +68,7 @@ class Panel(ScreenPanel):
             for name, note, cb in [
                 (_("Extrude / retract"), _("blocked when cold"), lambda: self.open("extrude", _("Extrude"))),
                 (_("Macros"), "", lambda: self.open("gcode_macros", _("Macros"))),
-                (_("Console"), "", lambda: self.open("console", _("Console"))),
+                (_("Console"), _("type G-code"), lambda: self.open("ss_console", _("Console"))),
                 (_("Speed & acceleration limits"), "", lambda: self.open("limits", _("Limits"))),
                 (_("Updates"), "", lambda: self.open("updater", _("Update"))),
                 (_("All KlipperScreen tools"), _("bed mesh, etc."), lambda: self.open(

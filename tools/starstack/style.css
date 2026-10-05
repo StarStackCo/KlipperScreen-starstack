@@ -392,3 +392,9 @@ button.ss-btn-white label { color: @bg; font-weight: 900; }
 .ss-content-guard scrolledwindow scrollbar trough,
 .ss-content-guard scrolledwindow scrollbar { min-height: 0; }
 .ss-content-guard scrolledwindow scrollbar slider { min-height: 16px; }
+
+/* STARSTACK-ADDED: Console (panels/ss_console.py) */
+entry.ss-console-entry { min-height: 44px; font-size: 14px; padding: 0 10px; border-radius: 10px;
+                         background-color: @buttons-bg; border: 1px solid @lines; }
+entry.ss-console-entry:focus { border-color: @accent; }
+textview.ss-console-output, textview.ss-console-output text { background-color: @bg; font-size: 12px; }
