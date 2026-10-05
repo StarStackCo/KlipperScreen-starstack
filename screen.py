@@ -12,6 +12,14 @@ import sys
 import traceback  # noqa
 from dataclasses import dataclass
 
+# STARSTACK-CHANGE #15 BEGIN: never join the per-login session D-Bus on X11. Gtk.Application
+# (upstream v0.4.7) used /run/user/<uid>/bus whenever someone was logged in over SSH; when that
+# login ended the bus closed, GLib raised SIGTERM and the touchscreen restarted (D-059). On X11
+# nothing here needs the session bus (Wi-Fi uses the system bus; idle-inhibit is Wayland only).
+if not os.environ.get("WAYLAND_DISPLAY"):
+    os.environ["DBUS_SESSION_BUS_ADDRESS"] = "disabled:"
+# STARSTACK-CHANGE #15 END
+
 import gi
 
 gi.require_version("Gdk", "3.0")
@@ -1653,16 +1661,6 @@ def main():
     functions.setup_logging(os.path.normpath(os.path.expanduser(args.logfile)))
     functions.patch_threading_excepthook()
 
-    # STARSTACK-CHANGE #15 BEGIN: survive the session D-Bus going away. Gtk.Application joins the
-    # session bus in /run/user/<uid> when one exists (e.g. while someone is logged in over SSH);
-    # when that login ends the bus closes and GLib's default exit-on-close quits KlipperScreen.
-    try:
-        from gi.repository import Gio
-
-        Gio.bus_get_sync(Gio.BusType.SESSION, None).set_exit_on_close(False)
-    except Exception as e:  # no session bus: nothing to protect against
-        logging.debug(f"StarStack: no session bus ({e})")
-    # STARSTACK-CHANGE #15 END
     app = KlipperScreenApplication(args)
     app.run()
 

@@ -74,7 +74,7 @@ Numbers **2–16** are edits inside upstream KlipperScreen files: the code carri
 | 12 | 2026-10-05 | `.gitignore` | Ignore `tools/starstack/.cache/` (downloaded theme sources) |
 | 13 | 2026-10-05 | `screen.py` `show_keyboard` | Touch-sized on-screen keyboard (4 rows × 44 px keys, edge margins, `.ss-keyboard` style) next to the rail |
 | 14 | 2026-10-05 | `.github/dependabot.yml` **(deleted)** | Dependabot off on the fork: it opened PRs for upstream's own dependencies. Updates arrive through the upstream sync. If a merge reports a modify/delete conflict on this file, keep it deleted |
-| 15 | 2026-10-05 | `screen.py` `main()` | Keep running when the session D-Bus closes. Upstream v0.4.7 runs as a `Gtk.Application`, which joins the user's session bus if one exists (e.g. someone is logged in over SSH). When that login ends, GLib quit KlipperScreen and the screen restarted (found on the bench, D-059) |
+| 15 | 2026-10-05 | `screen.py` (before `import gi`) | On X11, don't connect to the per-login session D-Bus. Upstream v0.4.7 runs as a `Gtk.Application`, which joined `/run/user/<uid>/bus` whenever someone was logged in over SSH. When that login ended, GLib stopped KlipperScreen and the touchscreen restarted (found on the bench, D-059). Wayland is unchanged (it needs the bus for idle-inhibit) |
 | 16 | 2026-10-05 | `.github/workflows/linter.yml`, `codeql.yml` (push trigger) | Skip branch `bench`: throw-away debug builds for the bench Pi don't run CI or send failure emails |
 
 ### Files we added (never conflict)
