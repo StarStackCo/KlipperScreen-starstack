@@ -84,7 +84,8 @@ for path in added:
     if "STARSTACK-ADDED" not in head and "STARSTACK" not in path.upper():
         errors.append(f"{path}: new file without a STARSTACK-ADDED note at the top")
 
-print(f"upstream base {base[:8]}: {len(modified)} modified, {len(added)} added files; change numbers used: {sorted(used)}")
+print(f"upstream base {base[:8]}: {len(modified)} modified, {len(added)} added files; "
+      f"change numbers used: {sorted(used)}")
 if errors:
     print("\n".join("ERROR " + e for e in errors))
     sys.exit(1)
