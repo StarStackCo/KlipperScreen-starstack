@@ -66,7 +66,9 @@ def is_printing(printer):
 
 
 def gcode(screen, script, widget=None):
-    screen._send_action(widget, "printer.gcode.script", {"script": script})
+    """Send G-code without graying out the button: if Klipper is busy (e.g. waiting for a heater)
+    the command queues, and a grayed button would look stuck until it runs (user report)."""
+    screen._send_action(None, "printer.gcode.script", {"script": script})
 
 
 def loaded_material(screen):
@@ -275,29 +277,44 @@ class StarStackRail:
         for child in bar.get_children():
             bar.remove(child)
         bar.set_size_request(64, -1)
-        bar.set_spacing(5)
+        bar.set_spacing(0)
+        bar.set_homogeneous(True)            # 5 equal slots down the rail: icons evenly spaced
         bar.get_style_context().add_class("ss-rail")
         size = 24
         self.nav = {}
+
+        def slot(button, w, h):
+            button.set_size_request(w, h)
+            button.set_halign(Gtk.Align.CENTER)
+            button.set_valign(Gtk.Align.CENTER)
+            box = Gtk.Box(vexpand=True)
+            box.set_center_widget(button)
+            bar.pack_start(box, True, True, 0)
+
         for page, icon, name in self.NAV:
             b = Gtk.Button(can_focus=False)
             b.set_name(icon)
-            b.set_image(gtk.Image(icon, size, size))
-            b.set_always_show_image(True)
+            img = gtk.Image(icon, size, size)
+            img.set_halign(Gtk.Align.CENTER)
+            img.set_valign(Gtk.Align.CENTER)
+            b.add(img)
             b.set_tooltip_text(name)
             b.get_style_context().add_class("ss-rail-btn")
             b.connect("clicked", self.go, page)
             b.connect("clicked", self.screen.remove_keyboard)
-            bar.pack_start(b, False, False, 0)
+            slot(b, 48, 44)
             self.nav[page] = b
         self.stop = Gtk.Button(can_focus=False)
-        stop_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0, halign=Gtk.Align.CENTER)
-        stop_box.add(gtk.Image("emergency", 20, 20))
-        stop_box.add(label(_("STOP"), "ss-stop-text", xalign=0.5))
+        stop_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1,
+                           halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
+        stop_img = gtk.Image("emergency", 20, 20)
+        stop_img.set_halign(Gtk.Align.CENTER)
+        stop_box.pack_start(stop_img, False, False, 0)
+        stop_box.pack_start(label(_("STOP"), "ss-stop-text", xalign=0.5), False, False, 0)
         self.stop.add(stop_box)
         self.stop.get_style_context().add_class("ss-stop")
         self.stop.connect("clicked", lambda *a: ask_estop(self.screen))
-        bar.pack_end(self.stop, False, False, 0)
+        slot(self.stop, 52, 52)
         self.update_stop()
         self._contain_content(base)
         from ks_includes import starstack_devtools   # bench-only, inactive without ~/.starstack_dev

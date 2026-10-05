@@ -21,6 +21,7 @@ class Panel(ScreenPanel):
         self.recent_cache = (0, [])
         self.dismissed = None
         self.resume_at = None                 # target °C while reheating before resume
+        self.speed_pending = None             # tapped speed preset not yet applied by Klipper
         self.cc = {"changes": [], "m73": []}  # color changes in the current file
         self.phase = False                    # alternates "color change in" / "time left"
         self.ticker = None
@@ -141,7 +142,7 @@ class Panel(ScreenPanel):
         self.speed_btns = {}
         for name, pct, macro in ss.SPEEDS:
             b = ss.button(_(name), f"{pct}%", css="ss-btn ss-btn-chip")
-            b.connect("clicked", lambda w, m=macro: ss.gcode(self._screen, m, w))
+            b.connect("clicked", self.pick_speed, pct, macro)
             self.speed_btns[pct] = b
         ss.grid_add(speeds, [self.speed_btns[p] for _n, p, _m in ss.SPEEDS])
         page.add(speeds)
@@ -163,6 +164,14 @@ class Panel(ScreenPanel):
         page.add(actions)
         self.job_file = None
         return page
+
+    def pick_speed(self, widget, pct, macro):
+        """Highlight the tapped preset immediately; it applies as soon as Klipper is free
+        (e.g. after the start-of-print heat-up)."""
+        self.speed_pending = pct
+        for p, b in self.speed_btns.items():
+            ss.set_class(b, "ss-chip-active", p == pct)
+        ss.gcode(self._screen, macro)
 
     def build_tiles(self):
         adv = ss.advanced()
@@ -376,8 +385,11 @@ class Panel(ScreenPanel):
         ss.set_class(self.job_pct, "ss-text-warning", paused)
         ss.set_class(self.progress, "ss-progress-paused", paused)
         sf = round((p.get_stat("gcode_move", "speed_factor") or 1) * 100)
+        if self.speed_pending == sf:
+            self.speed_pending = None             # Klipper has applied the tapped preset
+        shown = self.speed_pending or sf
         for pct, b in self.speed_btns.items():
-            ss.set_class(b, "ss-chip-active", pct == sf)
+            ss.set_class(b, "ss-chip-active", pct == shown)
         ss.set_button_text(self.pause_btn, (_("Reheating…") if self.resume_at else _("Resume")) if paused else _("Pause"))
         ss.set_button_text(self.mid_btn, (_("Change filament") if color_pause else _("Load filament"))
                            if paused else _("Cancel object"))

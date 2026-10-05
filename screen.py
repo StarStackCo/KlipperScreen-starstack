@@ -907,8 +907,20 @@ class KlipperScreen(Gtk.Window):
                 self.process_action(data[10:])
                 return
             elif data.startswith("echo: "):
+                # STARSTACK-CHANGE #10 BEGIN: routine info is not a pop-up on the touchscreen (the guided
+                # screens already show it; it stays in the Mainsail console). Warnings/errors (!!) still pop up.
+                if starstack.enabled(self):
+                    self.process_update(action, data)
+                    return
+                # STARSTACK-CHANGE #10 END
                 self.show_popup_message(data[6:], 1, from_ws=True)
             elif "!! Extrude below minimum temp" in data:
+                # STARSTACK-CHANGE #10 BEGIN: don't jump to the stock temperature panel
+                if starstack.enabled(self):
+                    self.show_popup_message(_("Nozzle too cold to extrude"))
+                    self.process_update(action, data)
+                    return
+                # STARSTACK-CHANGE #10 END
                 if self._cur_panels[-1] != "temperature":
                     self.show_panel("temperature", extra=self.printer.get_stat("toolhead", "extruder"))
                 self.show_popup_message(_("Temperature too low to extrude"))
