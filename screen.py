@@ -1301,6 +1301,7 @@ class KlipperScreen(Gtk.Window):
         if starstack.enabled(self):
             kbd_grid.set_size_request(-1, starstack.KEYBOARD_HEIGHT)
             kbd_grid.get_style_context().add_class("ss-keyboard")
+            self.base_panel.titlebar.hide()     # +24 px so page + 44 px keys fit; rail/STOP unaffected
         # STARSTACK-CHANGE #13 END
 
         if self._config.get_main_config().getboolean("use-matchbox-keyboard", False):
@@ -1367,6 +1368,10 @@ class KlipperScreen(Gtk.Window):
             self.keyboard['box'].remove(self.keyboard['kbd'])
         box.remove(self.keyboard['box'])
         self.keyboard = None
+        # STARSTACK-CHANGE #13 BEGIN: bring the title bar back when the keyboard closes
+        if starstack.enabled(self):
+            self.base_panel.titlebar.show()
+        # STARSTACK-CHANGE #13 END
         if entry:
             entry.set_sensitive(False)  # Move the focus
             entry.set_sensitive(True)
