@@ -19,6 +19,11 @@ from dataclasses import dataclass
 if not os.environ.get("WAYLAND_DISPLAY"):
     os.environ["DBUS_SESSION_BUS_ADDRESS"] = "disabled:"
 # STARSTACK-CHANGE #15 END
+# STARSTACK-CHANGE #18 BEGIN: no OpenGL. Nothing here draws with GL, but GDK set it up anyway,
+# which made the app load Mesa's software renderer (~160 MB incl. LLVM) at every start: ~8 s of
+# SD-card reads during boot (klipper-ui D-076). Drawing is unchanged (cairo, as before).
+os.environ.setdefault("GDK_GL", "disable")
+# STARSTACK-CHANGE #18 END
 
 import gi
 
