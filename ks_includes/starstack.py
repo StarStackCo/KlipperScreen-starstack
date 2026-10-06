@@ -349,6 +349,7 @@ class Pager:
         self.rows = []
         self.page = 0
         self.height = 0
+        self.want_row = None  # show_row() before the first measurement: applied on render
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, vexpand=True)
         self.area = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, vexpand=True)
         self.area.connect("size-allocate", self._allocated)
@@ -399,6 +400,14 @@ class Pager:
 
     def render(self):
         pages = self.pages()
+        if self.want_row is not None and self.height > 0:
+            seen = 0
+            for n, pg in enumerate(pages):
+                seen += len(pg)
+                if self.want_row < seen:
+                    self.page = n
+                    break
+            self.want_row = None
         self.page = max(0, min(self.page, len(pages) - 1))
         for c in self.list.get_children():
             self.list.remove(c)
@@ -420,6 +429,9 @@ class Pager:
 
     def show_row(self, index):
         """Go to the page that holds rows[index] (e.g. a part tapped on the bed map)."""
+        if self.height <= 0:
+            self.want_row = index
+            return
         seen = 0
         for n, page in enumerate(self.pages()):
             seen += len(page)
@@ -438,6 +450,66 @@ class Pager:
     def _rerender(self):
         self.render()
         return False
+
+
+def row(name, note="", cb=None, sensitive=True, css_note="ss-muted"):
+    """Full-width settings row: name left, small note right (ss-row, 44 px)."""
+    b = Gtk.Button(can_focus=False, hexpand=True)
+    box = Gtk.Box(spacing=8)
+    box.pack_start(label(name, "ss-row-title", ellipsize=True), True, True, 0)
+    box.pack_end(label(note, css_note, xalign=1.0), False, False, 0)
+    b.add(box)
+    b.get_style_context().add_class("ss-btn")
+    b.get_style_context().add_class("ss-row")
+    b.set_sensitive(sensitive)
+    if cb:
+        b.connect("clicked", lambda w: cb())
+    return b
+
+
+def switch_row(name, sub, on, cb):
+    """Row with the ON/OFF pill (same look as Settings › Advanced mode). cb() on tap."""
+    b = Gtk.Button(can_focus=False, hexpand=True)
+    box = Gtk.Box(spacing=10, valign=Gtk.Align.CENTER)
+    txt = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, valign=Gtk.Align.CENTER)
+    txt.add(label(name, "ss-row-title"))
+    if sub:
+        txt.add(label(sub, "ss-btn-sub", ellipsize=True))
+    box.pack_start(txt, True, True, 0)
+    track = Gtk.Box(valign=Gtk.Align.CENTER, halign=Gtk.Align.END)
+    track.set_size_request(56, 28)
+    track.get_style_context().add_class("ss-switch-on" if on else "ss-switch-off")
+    state = label(_("ON") if on else _("OFF"), "ss-switch-text", xalign=0.5)
+    state.set_halign(Gtk.Align.CENTER)
+    state.set_valign(Gtk.Align.CENTER)
+    track.set_center_widget(state)
+    box.pack_end(track, False, False, 0)
+    b.add(box)
+    for c in ("ss-btn", "ss-row", "ss-row-tall" if sub else "ss-row"):
+        b.get_style_context().add_class(c)
+    b.connect("clicked", lambda w: cb())
+    return b
+
+
+def choose(screen, title, options, current, on_pick):
+    """Pick one of [(value, label)] on its own page (pages with arrows). on_pick(value)."""
+    _push(
+        screen,
+        "ss_choose",
+        ss_title=title,
+        ss_options=options,
+        ss_current=current,
+        ss_on_pick=on_pick,
+    )
+
+
+def list_page(title):
+    """Page with a title and a Pager under it: returns (page, pager)."""
+    page = page_box(spacing=6)
+    page.pack_start(label(title, "ss-page-title"), False, False, 0)
+    pager = Pager()
+    page.pack_start(pager.box, True, True, 0)
+    return page, pager
 
 
 def page_box(spacing=8):
@@ -507,7 +579,15 @@ def info(screen, title, body):
 
 
 def close_dialog(screen):
-    popups = ("ss_dialog", "ss_adjust", "ss_cancel_object", "ss_filament", "ss_prompt", "ss_usb")
+    popups = (
+        "ss_dialog",
+        "ss_adjust",
+        "ss_cancel_object",
+        "ss_filament",
+        "ss_prompt",
+        "ss_usb",
+        "ss_choose",
+    )
     if screen._cur_panels and screen._cur_panels[-1] in popups:
         screen._menu_go_back()
 
@@ -530,6 +610,9 @@ def bed_clear_then_print(screen, filename):
 
 
 def ask_estop(screen):
+    if not get_setting("confirm_estop", True):  # Screen & language › Confirm emergency stop
+        screen._ws.api.emergency_stop()
+        return
     confirm(
         screen,
         _("Emergency stop?"),

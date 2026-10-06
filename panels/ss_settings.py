@@ -78,10 +78,9 @@ class Panel(ScreenPanel):
                     _("blocked when cold"),
                     lambda: self.open("extrude", _("Extrude")),
                 ),
-                (_("Macros"), "", lambda: self.open("gcode_macros", _("Macros"))),
+                (_("Macros"), "", lambda: self.open("ss_macros", _("Macros"))),
                 (_("Console"), _("type G-code"), lambda: self.open("ss_console", _("Console"))),
-                (_("Speed & acceleration limits"), "", lambda: self.open("limits", _("Limits"))),
-                (_("Updates"), "", lambda: self.open("updater", _("Update"))),
+                (_("Updates"), "", lambda: self.open("ss_updates", _("Updates"))),
                 (
                     _("All KlipperScreen tools"),
                     _("bed mesh, etc."),
@@ -99,15 +98,15 @@ class Panel(ScreenPanel):
             (_("Wi-Fi"), "", lambda: self.open("ss_network", _("Wi-Fi")), True),
             (
                 _("Screen & language"),
-                _("brightness, sleep, 24 h"),
-                lambda: self.open("settings", _("Settings")),
+                _("sleep, 24 h, language"),
+                lambda: self.open("ss_screen", _("Screen")),
                 True,
             ),
-            (_("About this printer"), "", lambda: self.open("system", _("System")), True),
+            (_("About this printer"), "", lambda: self.open("ss_about", _("About")), True),
             (
                 _("Shut down / reboot") + lock,
                 "",
-                lambda: self.open("shutdown", _("Shutdown")),
+                lambda: self.open("ss_power", _("Shut down")),
                 not printing,
             ),
         ]:
