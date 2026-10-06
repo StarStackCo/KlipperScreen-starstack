@@ -287,7 +287,7 @@ def section(text):
 
 # Row heights from style.css (button.ss-row 44 px, ss-row-tall 54 px, .ss-section label), used by
 # Pager to decide what fits on a page before the rows are on screen.
-ROW_HEIGHTS = {"row": 44, "tall": 54, "section": 14, "text": 18}
+ROW_HEIGHTS = {"row": 44, "tall": 54, "obj": 36, "section": 14, "text": 18}
 
 
 class Pager:
@@ -369,6 +369,17 @@ class Pager:
     def turn(self, widget, d):
         self.page += d
         self.render()
+
+    def show_row(self, index):
+        """Go to the page that holds rows[index] (e.g. a part tapped on the bed map)."""
+        seen = 0
+        for n, page in enumerate(self.pages()):
+            seen += len(page)
+            if index < seen:
+                if n != self.page:
+                    self.page = n
+                    self.render()
+                return
 
     def _allocated(self, widget, alloc):
         # The footer takes space only when shown; measure the list area without it the first time

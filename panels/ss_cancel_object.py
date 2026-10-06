@@ -46,11 +46,8 @@ class Panel(ScreenPanel):
         right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5, hexpand=True)
         right.add(ss.label(_("Cancel an object"), "ss-page-title"))
         right.add(ss.label(_("Tap a part. The rest keep printing."), "ss-btn-sub", wrap=True))
-        self.list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        scroll = self._gtk.ScrolledWindow()
-        scroll.add(self.list)
-        scroll.set_vexpand(True)
-        right.pack_start(scroll, True, True, 0)
+        self.pager = ss.Pager(spacing=4)  # pages with ‹ › arrows, no scrolling (D-064)
+        right.pack_start(self.pager.box, True, True, 0)
         row = ss.grid(2)
         back = ss.button(_("Back"), css="ss-btn ss-btn-outline ss-btn-mid")
         back.connect("clicked", lambda w: ss.close_dialog(self._screen))
@@ -70,8 +67,7 @@ class Panel(ScreenPanel):
         return self._printer.get_stat("exclude_object", "excluded_objects") or []
 
     def refresh(self):
-        for c in self.list.get_children():
-            self.list.remove(c)
+        rows = []
         gone = self.excluded()
         for i, obj in enumerate(self.objects()):
             name = obj["name"]
@@ -94,9 +90,12 @@ class Panel(ScreenPanel):
             ss.set_class(badge, "ss-badge-gone", name in gone)
             b.set_sensitive(name not in gone)
             b.connect("clicked", self.select, name)
-            self.list.add(b)
+            rows.append((b, "obj"))
+        self.pager.set_rows(rows)
+        names = [o["name"] for o in self.objects()]
+        if self.selected in names:
+            self.pager.show_row(names.index(self.selected))
         self.cancel_btn.set_sensitive(self.selected is not None and self.selected not in gone)
-        self.list.show_all()
         self.map.queue_draw()
 
     def select(self, widget, name):
