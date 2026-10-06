@@ -1,5 +1,6 @@
 # STARSTACK-ADDED: Home page: idle / printing / complete (FORK_CHANGES.md #22)
-# Design: klipper-ui design/phase2-directions/Prototype.dc.html (approved D-029/D-030)
+# Design: klipper-ui design/phase2-directions/Prototype.dc.html (approved D-029/D-030);
+# idle page = "Home B" on the design canvas (approved D-066)
 import logging
 import os
 import threading
@@ -36,33 +37,24 @@ class Panel(ScreenPanel):
         self.content.add(self.stack)
         self.content.show_all()
 
-    # ------------------------------------------------------------ idle
+    # ------------------------------------------------------------ idle (D-066, design: Home B)
+    # Newest file card on top (tagged FROM USB after a stick import), two "Print again" buttons,
+    # then the loaded filament's actions. No print history and no own files yet: "Get started"
+    # with the preloaded starter prints.
     def build_idle(self):
-        page = ss.page_box()
-        page.add(ss.section(_("Print again")))
-        self.recent_grid = ss.grid(3, spacing=8)
-        page.add(self.recent_grid)
-        page.add(ss.section(_("Preheat")))
-        row = ss.grid(4, spacing=8)
-        btns = []
-        for name, (noz, bed) in ss.MATERIALS.items():
-            b = ss.button(name, f"{noz}° / {bed}°", css="ss-btn ss-btn-card ss-btn-tall")
-            b.connect("clicked", lambda w, n=name: ss.gcode(self._screen, f"PREHEAT_{n}", w))
-            btns.append(b)
-        cool = ss.button(
-            _("Cool down"),
-            css="ss-btn ss-btn-outline ss-btn-tall ss-text-sky",
-            image="cool-down",
-            gtk=self._gtk,
-            img_size=18,
-        )
-        cool.connect("clicked", lambda w: ss.gcode(self._screen, "COOL_DOWN", w))
-        btns.append(cool)
-        ss.grid_add(row, btns)
-        page.add(row)
+        page = ss.page_box(spacing=6)
+        self.idle_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        page.pack_start(self.idle_box, False, False, 0)
+        page.pack_start(Gtk.Box(vexpand=True), True, True, 0)
+        self.fil_title = ss.section("")
+        page.pack_start(self.fil_title, False, False, 0)
+        self.fil_row = Gtk.Box(spacing=8)
+        page.pack_start(self.fil_row, False, False, 0)
+        self.loaded = None
         return page
 
     def recent_jobs(self):
+        """Recently printed files that still exist, newest first (async, cached 30 s)."""
         stamp, jobs = self.recent_cache
         if time.time() - stamp < 30 and jobs:
             return jobs
@@ -71,23 +63,13 @@ class Panel(ScreenPanel):
         if not self.history_pending and time.time() - self.history_stamp > 30:
             self.history_pending = True
             ss.history(self._screen, 30, self._history_done)
-        jobs, seen = [], set()
+        jobs = []
         for job in self.history_jobs:
             fn = job.get("filename")
-            if not fn or fn in seen or not job.get("exists", True) or fn.startswith("ss_bench"):
+            if not fn or fn in jobs or not job.get("exists", True) or fn.startswith("ss_bench"):
                 continue
-            seen.add(fn)
-            jobs.append(job)
-            if len(jobs) == 3:
-                break
-        if len(jobs) < 3:  # fall back to newest files
-            files = sorted(
-                self._files.files.values(), key=lambda f: f.get("modified", 0), reverse=True
-            )
-            for f in files:
-                if f["path"] not in seen and len(jobs) < 3:
-                    seen.add(f["path"])
-                    jobs.append({"filename": f["path"], "metadata": f})
+            if fn in self._files.files:
+                jobs.append(fn)
         self.recent_cache = (time.time(), jobs)
         return jobs
 
@@ -99,33 +81,154 @@ class Panel(ScreenPanel):
         if self.stack.get_visible_child_name() == "idle":
             self.refresh_idle()
 
+    def own_files(self):
+        """Files on the printer, newest first, without bench/demo files and starter prints."""
+        files = [
+            f
+            for f in self._files.files.values()
+            if "path" in f
+            and not os.path.basename(f["path"]).startswith("ss_bench")
+            and not ss.is_starter(f["path"])
+        ]
+        return [f["path"] for f in sorted(files, key=lambda f: f.get("modified", 0), reverse=True)]
+
     def refresh_idle(self):
-        for child in self.recent_grid.get_children():
-            self.recent_grid.remove(child)
+        for child in self.idle_box.get_children():
+            self.idle_box.remove(child)
+        history, own = self.recent_jobs(), self.own_files()
+        if not history and not own:
+            self.build_get_started()
+        else:
+            newest = own[0] if own else history[0]
+            self.idle_box.add(self.newest_card(newest))
+            again = [f for f in history if f != newest]
+            again += [f for f in own if f != newest and f not in again]
+            if again:
+                self.idle_box.add(ss.section(_("Print again")))
+                row = ss.grid(2, spacing=8)
+                ss.grid_add(row, [self.again_button(f) for f in again[:2]])
+                self.idle_box.add(row)
+        self.idle_box.show_all()
+        self.refresh_filament()
+
+    def file_sub(self, fn):
+        meta = self._files.get_file_info(fn) or {}
+        mat = (meta.get("filament_type", "") or "").split(";")[0]
+        return " · ".join(x for x in (mat, ss.fmt_duration(meta.get("estimated_time"))) if x)
+
+    def newest_card(self, fn):
+        card = Gtk.Box(spacing=10)
+        card.get_style_context().add_class("ss-card")
+        card.get_style_context().add_class("ss-card-hl")
+        t = self.thumb(fn, 84)
+        t.set_size_request(84, 84)
+        card.pack_start(t, False, False, 0)
+        info = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        head = Gtk.Box(spacing=6)
+        head.pack_start(ss.section(_("Newest file")), False, False, 0)
+        if fn in ss.usb_import(self._files).get("copied", []):
+            head.pack_start(ss.label(_("FROM USB"), "ss-tag"), False, False, 0)
+        info.add(head)
+        info.add(ss.label(ss.pretty_name(fn), "ss-card-title", ellipsize=True))
+        info.add(ss.label(self.file_sub(fn), "ss-btn-sub", ellipsize=True))
+        info.pack_start(Gtk.Box(vexpand=True), True, True, 0)
+        go = ss.button(_("Print"), css="ss-btn ss-btn-primary ss-btn-mid")
+        go.connect("clicked", lambda w: ss.bed_clear_then_print(self._screen, fn))
+        info.add(go)
+        card.pack_start(info, True, True, 0)
+        return card
+
+    def again_button(self, fn, size=36):
+        b = Gtk.Button(can_focus=False, hexpand=True)
+        box = Gtk.Box(spacing=8)
+        t = self.thumb(fn, size)
+        t.set_size_request(size, size)
+        box.pack_start(t, False, False, 0)
+        txt = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER)
+        txt.add(ss.label(ss.pretty_name(fn), "ss-row-title", ellipsize=True))
+        txt.add(ss.label(self.file_sub(fn), "ss-btn-sub", ellipsize=True))
+        box.pack_start(txt, True, True, 0)
+        b.add(box)
+        for c in ("ss-btn", "ss-row", "ss-row-file"):
+            b.get_style_context().add_class(c)
+        b.connect("clicked", lambda w: ss.bed_clear_then_print(self._screen, fn))
+        return b
+
+    def build_get_started(self):
+        starters = ss.starter_files(self._files)
+        self.idle_box.add(ss.section(_("Get started")))
+        self.idle_box.add(
+            ss.label(
+                _("Print a test model to check everything works.")
+                if starters
+                else _("No files yet. Send one from OrcaSlicer or plug in a USB stick."),
+                "ss-muted",
+                wrap=True,
+            )
+        )
+        if not starters:
+            return
+        row = ss.grid(3, spacing=8)
         tiles = []
-        for i, job in enumerate(self.recent_jobs()):
-            fn = job["filename"]
-            meta = self._files.get_file_info(fn) or job.get("metadata", {}) or {}
+        for i, fn in enumerate(starters[:3]):
             b = Gtk.Button(can_focus=False, hexpand=True)
             box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
             box.add(self.thumb(fn, THUMB))
             box.add(ss.label(ss.pretty_name(fn), "ss-tile-title", lines=2))
-            mat = meta.get("filament_type", "") or ""
-            sub = (mat.split(";")[0], ss.fmt_duration(meta.get("estimated_time")))
-            box.add(ss.label(" · ".join(x for x in sub if x), "ss-btn-sub", ellipsize=True))
+            box.add(ss.label(self.file_sub(fn), "ss-btn-sub", ellipsize=True))
             b.add(box)
-            b.get_style_context().add_class("ss-btn")
-            b.get_style_context().add_class("ss-tile")
-            if i == 0:
-                b.get_style_context().add_class("ss-tile-highlight")
+            for c in ("ss-btn", "ss-tile") + (("ss-tile-highlight",) if i == 0 else ()):
+                b.get_style_context().add_class(c)
             b.connect("clicked", lambda w, f=fn: ss.bed_clear_then_print(self._screen, f))
             tiles.append(b)
-        if not tiles:
-            tiles.append(
-                ss.label(_("No prints yet. Send one from OrcaSlicer."), "ss-muted", wrap=True)
-            )
-        ss.grid_add(self.recent_grid, tiles)
-        self.recent_grid.show_all()
+        ss.grid_add(row, tiles)
+        self.idle_box.add(row)
+
+    # ---- filament row: actions for the loaded material
+    def refresh_filament(self):
+        ss.query_loaded_material(self._screen, self._show_filament)
+
+    def _fil_button(self, text, icon, cb):
+        b = ss.button(
+            text, css="ss-btn ss-btn-mid", image=icon, gtk=self._gtk, img_size=16, vertical=False
+        )
+        b.connect("clicked", cb)
+        return b
+
+    def _show_filament(self, material):
+        self.loaded = material
+        for c in self.fil_row.get_children():
+            self.fil_row.remove(c)
+        load = lambda w: ss._push(self._screen, "ss_filament", ss_mode="load")  # noqa: E731
+        if material:
+            self.fil_title.set_text(_("FILAMENT") + f" · {material} " + _("LOADED"))
+            buttons = [
+                self._fil_button(
+                    _("Preheat") + f" {material}",
+                    "heat-up",
+                    lambda w: ss.gcode(self._screen, f"PREHEAT_{material}", w),
+                ),
+                self._fil_button(_("Load / Unload"), "spool", load),
+            ]
+        else:
+            # nothing remembered as loaded: no preheat guess, offer loading instead
+            self.fil_title.set_text(_("FILAMENT") + " · " + _("NONE LOADED"))
+            buttons = [self._fil_button(_("Load filament"), "spool", load)]
+        cool = ss.button(
+            _("Cool"),
+            css="ss-btn ss-btn-outline ss-btn-mid ss-text-sky",
+            image="cool-down",
+            gtk=self._gtk,
+            img_size=16,
+            vertical=False,
+        )
+        cool.set_hexpand(False)
+        cool.set_size_request(88, -1)
+        cool.connect("clicked", lambda w: ss.gcode(self._screen, "COOL_DOWN", w))
+        for b in buttons:
+            self.fil_row.pack_start(b, True, True, 0)
+        self.fil_row.pack_start(cool, False, False, 0)
+        self.fil_row.show_all()
 
     def thumb(self, filename, size):
         frame = Gtk.Box(halign=Gtk.Align.FILL)
@@ -570,7 +673,7 @@ class Panel(ScreenPanel):
             )
             self.stack.set_visible_child_name("done")
         else:
-            if self.stack.get_visible_child_name() != "idle" or not self.recent_grid.get_children():
+            if self.stack.get_visible_child_name() != "idle" or not self.idle_box.get_children():
                 self.refresh_idle()
             self.stack.set_visible_child_name("idle")
 
@@ -596,4 +699,7 @@ class Panel(ScreenPanel):
             self.job_file = None  # rebuild the job card thumbnail now that metadata exists
             self.update_view()
         elif action == "notify_metadata_update" and self.stack.get_visible_child_name() == "idle":
+            ss.debounce(self, "_meta_timer", 400, self.refresh_idle)
+        elif action == "notify_filelist_changed" and self.stack.get_visible_child_name() == "idle":
+            self.recent_cache = (0, [])  # new files, e.g. from a USB stick
             ss.debounce(self, "_meta_timer", 400, self.refresh_idle)

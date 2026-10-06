@@ -325,6 +325,11 @@ button.ss-tile-highlight { border: 1px solid @accent; }
 .ss-thumb { background-color: @surface-2; border-radius: 8px; }
 
 .ss-card { background-color: @buttons-bg; border-radius: 10px; padding: 8px; }
+/* Home B (D-066): newest-file card, FROM USB tag, thumbnail "Print again" buttons */
+.ss-card-hl { border: 1px solid @accent; padding: 10px; }
+.ss-card-title { font-size: 15px; font-weight: 800; }
+.ss-tag { background-color: @accent; color: @bg; border-radius: 4px; padding: 0 5px; font-size: 9px; font-weight: 800; }
+button.ss-row-file { min-height: 48px; padding: 0 8px; }
 .ss-job-name { font-size: 14px; font-weight: 800; }
 .ss-pct { font-size: 26px; font-weight: 900; color: @sky; }
 .ss-done-title { font-size: 20px; font-weight: 900; }

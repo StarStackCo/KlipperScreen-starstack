@@ -101,6 +101,7 @@ MAP = {
     "custom-script": ("code-square", WHITE),
     "hashtag": ("hash", WHITE),
     "spool": ("disc", WHITE),
+    "usb": ("usb-drive", SKY),
 }
 GRAPH = {
     "graph_colors": {

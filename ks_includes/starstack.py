@@ -12,6 +12,7 @@
 import json
 import logging
 import os
+import time
 
 import gi
 
@@ -159,6 +160,53 @@ def _thumb_metadata_arrived(action, data):
     for panel, size, image in waiting:
         if image.get_parent() is not None:  # page still showing this tile
             thumbnail(panel, filename, size, image)
+
+
+# ---------------------------------------------------------------- starter prints + USB import
+# Preloaded test prints live in this folder of the print jobs folder (D-066). Home shows them as
+# "Get started" until the printer has a print history or files of its own.
+STARTER_DIR = "Starter prints"
+
+
+def is_starter(path):
+    return path.split("/", 1)[0] == STARTER_DIR
+
+
+def starter_files(files):
+    """Starter prints (folder above), else any Benchy on the printer (bench/older installs)."""
+    paths = [p for p in files.files if is_starter(p)]
+    if not paths:
+        paths = [
+            p
+            for p in files.files
+            if "benchy" in p.lower() and not os.path.basename(p).startswith("ss_bench")
+        ]
+    return sorted(paths, key=lambda p: ("benchy" not in p.lower(), p.lower()))
+
+
+_usb_cache = {"mtime": None, "data": {}}
+
+
+def usb_import_path(files):
+    return os.path.join(files.gcodes_path or "", ".starstack", "usb_import.json")
+
+
+def usb_import(files):
+    """Last USB stick import written by klipper-ui tools/usb_import.py ({} if none)."""
+    path = usb_import_path(files)
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return {}
+    if mtime != _usb_cache["mtime"]:
+        try:
+            with open(path, encoding="utf-8") as f:
+                _usb_cache["data"] = json.load(f)
+        except (OSError, ValueError) as e:
+            logging.warning(f"StarStack: can't read {path}: {e}")
+            _usb_cache["data"] = {}
+        _usb_cache["mtime"] = mtime
+    return _usb_cache["data"]
 
 
 def pretty_name(filename):
@@ -459,7 +507,7 @@ def info(screen, title, body):
 
 
 def close_dialog(screen):
-    popups = ("ss_dialog", "ss_adjust", "ss_cancel_object", "ss_filament", "ss_prompt")
+    popups = ("ss_dialog", "ss_adjust", "ss_cancel_object", "ss_filament", "ss_prompt", "ss_usb")
     if screen._cur_panels and screen._cur_panels[-1] in popups:
         screen._menu_go_back()
 
@@ -557,9 +605,30 @@ class StarStackRail:
         slot(self.stop, 52, 52)
         self.update_stop()
         self._contain_content(base)
+        self.usb_seen = None  # mtime of the last USB import we already announced
+        GLib.timeout_add_seconds(2, self._usb_check)
         from ks_includes import starstack_devtools  # bench-only, inactive without ~/.starstack_dev
 
         starstack_devtools.start(self.screen)
+
+    def _usb_check(self):
+        """A USB stick import finished (klipper-ui usb/): show what was copied (D-065)."""
+        files = self.screen.files
+        if files is None or not files.gcodes_path:
+            return True
+        try:
+            mtime = os.path.getmtime(usb_import_path(files))
+        except OSError:
+            mtime = 0
+        if self.usb_seen is None:  # first look after start: don't announce an old import
+            self.usb_seen = mtime
+            return True
+        if mtime != self.usb_seen:
+            self.usb_seen = mtime
+            report = usb_import(files)
+            if report and time.time() - report.get("time", 0) < 300:
+                _push(self.screen, "ss_usb", ss_report=report)
+        return True
 
     @staticmethod
     def _contain_content(base):
