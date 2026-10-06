@@ -519,11 +519,17 @@ class KlipperScreen(Gtk.ApplicationWindow):
             msg.get_style_context().add_class("message_popup_error")
             logging.info(f"error: {message}")
 
+        # STARSTACK-CHANGE #17 BEGIN: StarStack: as wide as the area right of the rail (minus a
+        # margin) instead of 90 % of the screen, so warnings never cover the rail's buttons
+        width = int(self.width * 0.9)
+        if starstack.enabled(self):
+            width = max(200, self.base_panel.titlebar.get_allocated_width() - 16)
         popup = Gtk.Popover(
             relative_to=self.base_panel.titlebar,
             halign=Gtk.Align.CENTER,
-            width_request=int(self.width * 0.9),
+            width_request=width,
         )
+        # STARSTACK-CHANGE #17 END
         popup.set_modal(False)
         popup.get_style_context().add_class("message_popup_popover")
         popup.add(msg)
