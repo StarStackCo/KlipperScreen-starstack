@@ -24,7 +24,7 @@ class Panel(ScreenPanel):
         head.pack_start(ss.label(_("Extrude / retract"), "ss-page-title"), True, True, 0)
         page.pack_start(head, False, False, 0)
 
-        self.temp_btn = ss.button("", css="ss-btn ss-btn-mid", vertical=False)
+        self.temp_btn = ss.button("", " ", css="ss-btn ss-btn-mid")  # text + hint line
         self.temp_btn.connect("clicked", self.set_temp)
         page.pack_start(self.temp_btn, False, False, 0)
 
