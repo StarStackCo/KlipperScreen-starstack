@@ -78,6 +78,7 @@ Numbers **2–16** are edits inside upstream KlipperScreen files: the code carri
 | 16 | 2026-10-05 | `.github/workflows/linter.yml`, `codeql.yml` (push trigger) | Skip branch `bench`: throw-away debug builds for the bench Pi don't run CI or send failure emails |
 | 17 | 2026-10-06 | `screen.py` `show_popup_message` | Pop-up warnings only as wide as the area right of the StarStack rail (was 90 % of the screen, covering the rail buttons) |
 | 18 | 2026-10-06 | `screen.py` (before `import gi`) | `GDK_GL=disable`: GDK no longer sets up OpenGL, which loaded Mesa's software renderer (~160 MB with LLVM) at every start and cost ~8 s of SD-card reads during boot. Nothing in KlipperScreen draws with GL (klipper-ui D-076) |
+| 19 | 2026-10-06 | `screen.py` `_init_printer`, `websocket_disconnected` retry checks, new `_ss_retry` | Connection retries every 1 s for the first minute (was 4 s) and up to ~6 min (was 4 tries). The touchscreen now starts before Moonraker at boot, so the first try is usually refused (klipper-ui D-077) |
 
 ### Files we added (never conflict)
 | # | Date | Files | What |
