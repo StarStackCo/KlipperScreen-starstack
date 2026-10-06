@@ -1,9 +1,10 @@
-# STARSTACK-ADDED: Wi-Fi page (FORK_CHANGES.md #36, klipper-ui B-6 / D-063)
-# One big row per network (strongest access point per name): tap to connect, type the password with
-# the StarStack keyboard, Disconnect/Forget in our dialog. Uses upstream's NetworkManager backend
-# (ks_includes/sdbus_nm.py) unchanged. Enterprise (802.1x) Wi-Fi and interface choice stay on the
-# stock page: "All network settings" at the end of the list.
+# STARSTACK-ADDED: Wi-Fi page (FORK_CHANGES.md #36, klipper-ui B-6 / D-063, D-064)
+# One big row per network (strongest access point per name), shown in pages with ‹ › arrows: tap
+# to connect, type the password with the StarStack keyboard, Disconnect/Forget in our dialog.
+# Always works on the Wi-Fi adapter (no interface choice). Uses upstream's NetworkManager backend
+# (ks_includes/sdbus_nm.py) unchanged. Enterprise (802.1x) Wi-Fi isn't offered on the touchscreen.
 import logging
+import time
 
 import gi
 
@@ -31,6 +32,7 @@ class Panel(ScreenPanel):
         self.nm = None
         self.timer = None
         self.shown = None  # what the list currently shows, to rebuild only on changes
+        self.last_scan = 0
         self.pw_ssid = None
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.NONE)
         self.stack.set_vhomogeneous(False)  # size to the visible page, so the keyboard fits
@@ -95,10 +97,8 @@ class Panel(ScreenPanel):
         page.pack_start(head, False, False, 0)
         self.status = ss.label("", "ss-muted", wrap=True)
         page.pack_start(self.status, False, False, 0)
-        self.list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        scroll = self._gtk.ScrolledWindow()
-        scroll.add(self.list)
-        page.pack_start(scroll, True, True, 0)
+        self.pager = ss.Pager()
+        page.pack_start(self.pager.box, True, True, 0)
         return page
 
     def build_password(self):
@@ -152,13 +152,14 @@ class Panel(ScreenPanel):
         return next((n["SSID"] for n in self.nm.get_networks() if n.get("BSSID") == bssid), None)
 
     def wired_text(self):
+        from sdbus_block.networkmanager import enums
+
         for dev in self.nm.get_all_network_devices():
-            iface = dev["interface"]
-            if iface == getattr(self.nm.wlan_device, "interface", None) or iface == "lo":
+            if dev["type"] != enums.DeviceType.ETHERNET:
                 continue
-            ip = self.nm.get_ip_for_interface(iface)
-            if ip:
-                return _("Cable connected") + f" · {ip}"
+            ip = self.nm.get_ip_for_interface(dev["interface"])
+            if ip and ip != "?":  # "?" = no active connection on that port
+                return _("Connected via Ethernet") + f" · {ip}"
         return ""
 
     def refresh(self):
@@ -189,7 +190,13 @@ class Panel(ScreenPanel):
         else:
             text = _("Not connected to Wi-Fi.")
         self.status.set_text(text + (" " + wired if wired else ""))
-        self.fill(self.networks(), current, True)
+        nets = self.networks()
+        if not nets and time.monotonic() - self.last_scan > 5:
+            # Right after Wi-Fi is switched on the adapter isn't ready and a scan is refused:
+            # keep asking until networks show up
+            self.last_scan = time.monotonic()
+            self.nm.rescan()
+        self.fill(nets, current, True)
         return True
 
     def fill(self, nets, current, on):
@@ -201,27 +208,12 @@ class Panel(ScreenPanel):
         if key == self.shown:
             return
         self.shown = key
-        for c in self.list.get_children():
-            self.list.remove(c)
+        rows = []
         if on and not nets:
-            self.list.add(ss.label(_("Looking for networks…"), "ss-muted"))
+            rows.append((ss.label(_("Searching for networks…"), "ss-muted"), "text"))
         for net in sorted(nets, key=lambda n: n["SSID"] != current):  # connected one on top
-            self.list.add(self.row(net, net["SSID"] == current))
-        self.list.add(ss.label(_("OTHER"), "ss-section"))
-        more = self.plain_row(_("All network settings"), _("enterprise Wi-Fi, interfaces"))
-        more.connect("clicked", lambda w: self._screen.show_panel("network", _("Network")))
-        self.list.add(more)
-        self.list.show_all()
-
-    def plain_row(self, name, note):
-        b = Gtk.Button(can_focus=False, hexpand=True)
-        box = Gtk.Box(spacing=8)
-        box.pack_start(ss.label(name, "ss-row-title"), True, True, 0)
-        box.pack_end(ss.label(note, "ss-muted", xalign=1.0), False, False, 0)
-        b.add(box)
-        b.get_style_context().add_class("ss-btn")
-        b.get_style_context().add_class("ss-row")
-        return b
+            rows.append((self.row(net, net["SSID"] == current), "tall"))
+        self.pager.set_rows(rows)
 
     def row(self, net, connected):
         b = Gtk.Button(can_focus=False, hexpand=True)
@@ -281,14 +273,12 @@ class Panel(ScreenPanel):
                 on_alt=lambda: self.ask_forget(ssid),
             )
         elif net and "802.1x" in (net.get("security") or ""):
-            ss.confirm(
+            ss.info(
                 self._screen,
                 ssid,
                 _("This network needs a username and password (enterprise Wi-Fi).")
                 + " "
-                + _("Set it up in All network settings."),
-                _("Open"),
-                lambda: self._screen.show_panel("network", _("Network")),
+                + _("That kind of network can't be set up from the touchscreen."),
             )
         elif net and not self.secured(net):
             self.add_and_connect(ssid, "")
@@ -358,7 +348,7 @@ class Panel(ScreenPanel):
         ss.confirm(
             self._screen,
             _("Turn off Wi-Fi?"),
-            _("Mainsail on other devices stops working unless the printer also has a cable."),
+            _("Mainsail on other devices stops working unless the printer is also on Ethernet."),
             _("Turn off"),
             self._wifi_off,
             kind="warning",
@@ -417,6 +407,8 @@ class Panel(ScreenPanel):
         if self.nm is None:
             return
         if self.nm.wifi:
+            # Always the Wi-Fi adapter (the backend otherwise follows the primary port, end0)
+            self.nm.set_selected_interface(self.nm.wlan_device.interface)
             self.nm.set_connection_monitoring(True)
             GLib.timeout_add_seconds(1, self.nm.monitor_connection_status)
             if self.nm.is_wifi_enabled():

@@ -16,7 +16,7 @@ import os
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, Pango
+from gi.repository import GLib, Gtk, Pango
 
 THEME = "starstack"
 MATERIALS = {"PLA": (210, 60), "PETG": (240, 80), "TPU": (225, 40)}
@@ -283,6 +283,101 @@ def debounce(owner, attr, ms, fn):
 
 def section(text):
     return label(text.upper(), "ss-section")
+
+
+# Row heights from style.css (button.ss-row 44 px, ss-row-tall 54 px, .ss-section label), used by
+# Pager to decide what fits on a page before the rows are on screen.
+ROW_HEIGHTS = {"row": 44, "tall": 54, "section": 14, "text": 18}
+
+
+class Pager:
+    """A list shown one page at a time with ‹ Page x / y › arrows, like the Print page.
+    Used instead of scrolling: drag-scrolling is unreliable on the resistive TFT (D-064).
+    rows: list of (widget, kind) with kind in ROW_HEIGHTS. The page size follows the space
+    the list actually gets on screen, so nothing is cut off."""
+
+    def __init__(self, spacing=6):
+        self.spacing = spacing
+        self.rows = []
+        self.page = 0
+        self.height = 0
+        self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, vexpand=True)
+        self.area = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, vexpand=True)
+        self.area.connect("size-allocate", self._allocated)
+        self.list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=spacing)
+        self.area.pack_start(self.list, False, False, 0)
+        self.box.pack_start(self.area, True, True, 0)
+        self.foot = Gtk.Box(spacing=8)
+        self.prev = button("‹", css="ss-btn ss-btn-outline ss-btn-pager")
+        self.prev.set_hexpand(False)
+        self.prev.connect("clicked", self.turn, -1)
+        self.next = button("›", css="ss-btn ss-btn-outline ss-btn-pager")
+        self.next.set_hexpand(False)
+        self.next.connect("clicked", self.turn, 1)
+        self.note = label("", "ss-muted", xalign=0.5)
+        self.foot.pack_start(self.prev, False, False, 0)
+        self.foot.pack_start(self.note, True, True, 0)
+        self.foot.pack_end(self.next, False, False, 0)
+        self.box.pack_end(self.foot, False, False, 0)
+        self.foot.set_no_show_all(True)  # only shown when there is more than one page
+
+    def set_rows(self, rows, reset=False):
+        self.rows = rows
+        if reset:
+            self.page = 0
+        self.render()
+
+    def pages(self):
+        """Split rows into pages that fit the measured height. Nothing until measured: showing the
+        whole list first would make the content guard measure the full list, not the screen."""
+        if self.height <= 0:
+            return [[]]
+        pages, cur, used = [], [], 0
+        for widget, kind in self.rows:
+            h = ROW_HEIGHTS.get(kind, 44) + (self.spacing if cur else 0)
+            if cur and used + h > self.height:
+                if cur[-1][1] == "section":  # don't leave a heading alone at the bottom
+                    pages.append(cur[:-1])
+                    cur, used = [cur[-1]], ROW_HEIGHTS["section"]
+                    h = ROW_HEIGHTS.get(kind, 44) + self.spacing
+                else:
+                    pages.append(cur)
+                    cur, used = [], 0
+                    h = ROW_HEIGHTS.get(kind, 44)
+            cur.append((widget, kind))
+            used += h
+        pages.append(cur)
+        return pages
+
+    def render(self):
+        pages = self.pages()
+        self.page = max(0, min(self.page, len(pages) - 1))
+        for c in self.list.get_children():
+            self.list.remove(c)
+        for widget, _kind in pages[self.page]:
+            self.list.add(widget)
+        many = len(pages) > 1
+        self.foot.set_visible(many)
+        if many:
+            self.foot.show_all()
+        self.note.set_text(_("Page") + f" {self.page + 1} / {len(pages)}")
+        self.prev.set_sensitive(self.page > 0)
+        self.next.set_sensitive(self.page < len(pages) - 1)
+        self.list.show_all()
+
+    def turn(self, widget, d):
+        self.page += d
+        self.render()
+
+    def _allocated(self, widget, alloc):
+        # The footer takes space only when shown; measure the list area without it the first time
+        if alloc.height != self.height:
+            self.height = alloc.height
+            GLib.idle_add(self._rerender)
+
+    def _rerender(self):
+        self.render()
+        return False
 
 
 def page_box(spacing=8):
