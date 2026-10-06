@@ -76,6 +76,9 @@ Numbers **2–16** are edits inside upstream KlipperScreen files: the code carri
 | 14 | 2026-10-05 | `.github/dependabot.yml` **(deleted)** | Dependabot off on the fork: it opened PRs for upstream's own dependencies. Updates arrive through the upstream sync. If a merge reports a modify/delete conflict on this file, keep it deleted |
 | 15 | 2026-10-05 | `screen.py` (before `import gi`) | On X11, don't connect to the per-login session D-Bus. Upstream v0.4.7 runs as a `Gtk.Application`, which joined `/run/user/<uid>/bus` whenever someone was logged in over SSH. When that login ended, GLib stopped KlipperScreen and the touchscreen restarted (found on the bench, D-059). Wayland is unchanged (it needs the bus for idle-inhibit) |
 | 16 | 2026-10-05 | `.github/workflows/linter.yml`, `codeql.yml` (push trigger) | Skip branch `bench`: throw-away debug builds for the bench Pi don't run CI or send failure emails |
+| 17 | 2026-10-06 | `screen.py` `show_popup_message` | Pop-up warnings only as wide as the area right of the StarStack rail (was 90 % of the screen, covering the rail buttons) |
+| 18 | 2026-10-06 | `screen.py` (before `import gi`) | `GDK_GL=disable`: GDK no longer sets up OpenGL, which loaded Mesa's software renderer (~160 MB with LLVM) at every start and cost ~8 s of SD-card reads during boot. Nothing in KlipperScreen draws with GL (klipper-ui D-076) |
+| 19 | 2026-10-06 | `screen.py` `_init_printer`, `websocket_disconnected` retry checks, new `_ss_retry` | Connection retries every 1 s for the first minute (was 4 s) and up to ~6 min (was 4 tries). The touchscreen now starts before Moonraker at boot, so the first try is usually refused (klipper-ui D-077) |
 
 ### Files we added (never conflict)
 | # | Date | Files | What |
@@ -100,3 +103,13 @@ Numbers **2–16** are edits inside upstream KlipperScreen files: the code carri
 | 35 | 2026-10-05 | `panels/ss_console.py` | Console with the command box at the top (stock one has it at the bottom edge); opened from Settings › Advanced |
 | 36 | 2026-10-05 | `panels/ss_network.py` | StarStack Wi-Fi page (klipper-ui B-6): one row per network, tap to connect, password with the StarStack keyboard, Disconnect/Forget in `ss_dialog` (now with an optional third button). Upstream's `sdbus_nm` backend unchanged; enterprise Wi-Fi via the stock page |
 | 37 | 2026-10-05 | `panels/ss_usb.py` | "USB stick: N new files copied" prompt with "Print this one now?" for the newest file (klipper-ui D-065). Opened by `StarStackRail` when klipper-ui's USB import writes `gcodes/.starstack/usb_import.json` |
+| 38 | 2026-10-06 | `panels/ss_choose.py` | Generic "pick one" page (`ss.choose()`), pages with arrows |
+| 39 | 2026-10-06 | `panels/ss_screen.py` | Screen & language (replaces stock settings): screen sleep, sleep while printing, 24 h clock, language, **Confirm emergency stop** (StarStack setting, default ON, used by the STOP button) |
+| 40 | 2026-10-06 | `panels/ss_about.py` | About this printer (replaces stock system panel) |
+| 41 | 2026-10-06 | `panels/ss_power.py` | Shut down / reboot / restart Klipper / restart touchscreen, each confirmed, locked while printing (replaces stock shutdown panel) |
+| 42 | 2026-10-06 | `panels/ss_extrude.py` | Extrude / retract (replaces stock extrude panel): nozzle temp, amount + speed chips, blocked when cold |
+| 43 | 2026-10-06 | `panels/ss_updates.py` | Updates (replaces stock updater): Moonraker update manager in pages, confirmed, locked while printing |
+| 44 | 2026-10-06 | `panels/ss_fans.py` | Fans: settable part/generic fans, automatic fans read-only |
+| 45 | 2026-10-06 | `panels/ss_move.py` | Move axes with fine steps, only homed axes move |
+| 46 | 2026-10-06 | `panels/ss_bed_mesh.py` | Bed mesh: colour map, Calibrate, Profile, Clear, Save (SAVE_CONFIG) |
+| 47 | 2026-10-06 | `panels/ss_shaper.py` | Input shaper: current shaper, Measure (needs accelerometer), Save |

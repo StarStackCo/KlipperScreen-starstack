@@ -19,6 +19,11 @@ from dataclasses import dataclass
 if not os.environ.get("WAYLAND_DISPLAY"):
     os.environ["DBUS_SESSION_BUS_ADDRESS"] = "disabled:"
 # STARSTACK-CHANGE #15 END
+# STARSTACK-CHANGE #18 BEGIN: no OpenGL. Nothing here draws with GL, but GDK set it up anyway,
+# which made the app load Mesa's software renderer (~160 MB incl. LLVM) at every start: ~8 s of
+# SD-card reads during boot (klipper-ui D-076). Drawing is unchanged (cairo, as before).
+os.environ.setdefault("GDK_GL", "disable")
+# STARSTACK-CHANGE #18 END
 
 import gi
 
@@ -519,11 +524,17 @@ class KlipperScreen(Gtk.ApplicationWindow):
             msg.get_style_context().add_class("message_popup_error")
             logging.info(f"error: {message}")
 
+        # STARSTACK-CHANGE #17 BEGIN: StarStack: as wide as the area right of the rail (minus a
+        # margin) instead of 90 % of the screen, so warnings never cover the rail's buttons
+        width = int(self.width * 0.9)
+        if starstack.enabled(self):
+            width = max(200, self.base_panel.titlebar.get_allocated_width() - 16)
         popup = Gtk.Popover(
             relative_to=self.base_panel.titlebar,
             halign=Gtk.Align.CENTER,
-            width_request=int(self.width * 0.9),
+            width_request=width,
         )
+        # STARSTACK-CHANGE #17 END
         popup.set_modal(False)
         popup.get_style_context().add_class("message_popup_popover")
         popup.add(msg)
@@ -887,7 +898,9 @@ class KlipperScreen(Gtk.ApplicationWindow):
         if status:
             message += f"\n\n{status}"
 
-        if self.state.reinit_count > self.MAX_RETRIES or "printer_select" in self._cur_panels:
+        # STARSTACK-CHANGE #19 BEGIN: retry limit (see _ss_retry)
+        if self.state.reinit_count > self._ss_retry()[0] or "printer_select" in self._cur_panels:
+            # STARSTACK-CHANGE #19 END
             logging.info("Stopping Retries")
             self.state.connecting = False
             self.printer_initializing(message, go_to_splash)
@@ -949,6 +962,10 @@ class KlipperScreen(Gtk.ApplicationWindow):
         self.files.refresh_files()
         # STARSTACK-CHANGE #8 BEGIN: StarStack Home replaces main_menu
         if starstack.enabled(self):
+            if self._cur_panels[-1:] == ["ss_starting"]:
+                # fill the progress bar to the end first, then Home (klipper-ui D-071)
+                self.panels["ss_starting"].finish(self._ss_ready_done)
+                return
             if not self._cur_panels or self._cur_panels[0] != "ss_home":
                 self.show_panel("ss_home", remove_all=True)
             self.check_active_commands()
@@ -957,7 +974,13 @@ class KlipperScreen(Gtk.ApplicationWindow):
         self.show_panel("main_menu", remove_all=True, items=self._config.get_menu_items("__main"))
         self.check_active_commands()
 
-    # STARSTACK-CHANGE #8 BEGIN: helper for the StarStack stopped screen
+    # STARSTACK-CHANGE #8 BEGIN: helpers for the StarStack Home and stopped screens
+    def _ss_ready_done(self):
+        # the starting screen's bar is full: go Home if the printer is still ready
+        if self._cur_panels[-1:] == ["ss_starting"] and self.printer.state == "ready":
+            self.show_panel("ss_home", remove_all=True)
+            self.check_active_commands()
+
     def _ss_stopped(self, kind, msg):
         if "ss_stopped" in self.panels:
             self.panels_reinit = list(set(getattr(self, "panels_reinit", []) + ["ss_stopped"]))
@@ -1283,7 +1306,9 @@ class KlipperScreen(Gtk.ApplicationWindow):
         self.printer_initializing(msg, go_to_splash)
         self.state.connecting = True
 
-        if self.state.reinit_count > self.MAX_RETRIES or "printer_select" in self._cur_panels:
+        # STARSTACK-CHANGE #19 BEGIN: retry limit (see _ss_retry)
+        if self.state.reinit_count > self._ss_retry()[0] or "printer_select" in self._cur_panels:
+            # STARSTACK-CHANGE #19 END
             logging.info("Stopping Retries")
             return False
         first_try = self.state.reinit_count == 0
@@ -1299,7 +1324,20 @@ class KlipperScreen(Gtk.ApplicationWindow):
             action()
         else:
             logging.info("Retry: waiting before %s", info)
-            GLib.timeout_add_seconds(4, action)
+            # STARSTACK-CHANGE #19 BEGIN: retry delay (see _ss_retry)
+            GLib.timeout_add_seconds(self._ss_retry()[1], action)
+            # STARSTACK-CHANGE #19 END
+
+    # STARSTACK-CHANGE #19 BEGIN: StarStack starts the touchscreen before Moonraker at boot
+    # (klipper-ui D-069), so the first connection is usually refused. Retry every second for the
+    # first minute (was every 4 s: Home appeared up to 4 s after the printer was ready), then every
+    # 4 s, and keep going for ~6 min instead of giving up after 4 tries (~16 s).
+    def _ss_retry(self):
+        if not starstack.enabled(self):
+            return self.MAX_RETRIES, 4
+        return 150, (1 if self.state.reinit_count <= 60 else 4)
+
+    # STARSTACK-CHANGE #19 END
 
     def connect_to_moonraker(self):
         if self._ws.closing:

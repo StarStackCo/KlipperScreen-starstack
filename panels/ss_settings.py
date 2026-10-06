@@ -48,7 +48,7 @@ class Panel(ScreenPanel):
         txt.add(ss.label(_("Advanced mode"), "ss-row-title"))
         txt.add(
             ss.label(
-                _("Pressure advance, extrude, macros, console, limits"),
+                _("Extrude, console, bed mesh, tools"),
                 "ss-btn-sub",
                 ellipsize=True,
             )
@@ -76,19 +76,14 @@ class Panel(ScreenPanel):
                 (
                     _("Extrude / retract"),
                     _("blocked when cold"),
-                    lambda: self.open("extrude", _("Extrude")),
+                    lambda: self.open("ss_extrude", _("Extrude")),
                 ),
-                (_("Macros"), "", lambda: self.open("gcode_macros", _("Macros"))),
                 (_("Console"), _("type G-code"), lambda: self.open("ss_console", _("Console"))),
-                (_("Speed & acceleration limits"), "", lambda: self.open("limits", _("Limits"))),
-                (_("Updates"), "", lambda: self.open("updater", _("Update"))),
-                (
-                    _("All KlipperScreen tools"),
-                    _("bed mesh, etc."),
-                    lambda: self.open(
-                        "main_menu", _("KlipperScreen"), items=self._config.get_menu_items("__main")
-                    ),
-                ),
+                (_("Updates"), "", lambda: self.open("ss_updates", _("Updates"))),
+                (_("Move axes"), _("fine steps"), lambda: self.open("ss_move", _("Move"))),
+                (_("Fans"), "", lambda: self.open("ss_fans", _("Fans"))),
+                (_("Bed mesh"), "", lambda: self.open("ss_bed_mesh", _("Bed mesh"))),
+                (_("Input shaper"), "", lambda: self.open("ss_shaper", _("Input shaper"))),
                 (_("Restart firmware"), "", self.ask_restart),
             ]:
                 rows.append((self.row(name, note, cb), "row"))
@@ -99,15 +94,15 @@ class Panel(ScreenPanel):
             (_("Wi-Fi"), "", lambda: self.open("ss_network", _("Wi-Fi")), True),
             (
                 _("Screen & language"),
-                _("brightness, sleep, 24 h"),
-                lambda: self.open("settings", _("Settings")),
+                _("sleep, 24 h, language"),
+                lambda: self.open("ss_screen", _("Screen")),
                 True,
             ),
-            (_("About this printer"), "", lambda: self.open("system", _("System")), True),
+            (_("About this printer"), "", lambda: self.open("ss_about", _("About")), True),
             (
                 _("Shut down / reboot") + lock,
                 "",
-                lambda: self.open("shutdown", _("Shutdown")),
+                lambda: self.open("ss_power", _("Shut down")),
                 not printing,
             ),
         ]:

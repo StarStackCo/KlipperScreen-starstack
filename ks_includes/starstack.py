@@ -64,6 +64,60 @@ def set_setting(key, value):
         logging.error(f"StarStack: cannot save {key}: {e}")
 
 
+# ---------------------------------------------------------------- boot progress (klipper-ui D-070)
+# klipper-ui's boot splash draws a progress bar under the logo until this app shows its first
+# screen (it stops when BOOT_UI_UP exists), then ss_starting carries on with the same estimate.
+# BOOT_SECONDS holds how long the last boot took to reach Home, so the bar matches this printer.
+BOOT_RUN = "/run/starstack"
+BOOT_UI_UP = BOOT_RUN + "/ui-up"
+BOOT_SECONDS = "/var/lib/starstack/boot_seconds"
+BOOT_WINDOW = 150  # uptime below this = still booting
+
+
+def uptime():
+    try:
+        with open("/proc/uptime") as f:
+            return float(f.read().split()[0])
+    except (OSError, ValueError, IndexError):
+        return 0.0
+
+
+def boot_expected():
+    try:
+        with open(BOOT_SECONDS) as f:
+            return min(180.0, max(15.0, float(f.read())))
+    except (OSError, ValueError):
+        return 35.0
+
+
+def progress(elapsed, expected):
+    """Linear to 90 % at the expected time, then creeps toward 99 % so it never looks stuck."""
+    if elapsed <= expected:
+        return 0.9 * elapsed / expected
+    return 0.9 + 0.09 * (1 - 2.718 ** (-(elapsed - expected) / 20))
+
+
+def boot_ui_up():
+    """Tell the boot splash to stop drawing (it would paint over the UI)."""
+    try:
+        open(BOOT_UI_UP, "a").close()
+    except OSError:
+        pass  # no splash installed (no /run/starstack): nothing to stop
+
+
+def boot_done():
+    """First time Home shows after power-up: remember how long the boot took."""
+    up = uptime()
+    if up > BOOT_WINDOW or os.path.exists(BOOT_RUN + "/boot-recorded"):
+        return
+    try:
+        with open(BOOT_SECONDS, "w") as f:
+            f.write(f"{up:.0f}\n")
+        open(BOOT_RUN + "/boot-recorded", "a").close()
+    except OSError:
+        pass
+
+
 def advanced(screen=None):
     return bool(get_setting("advanced", False))
 
@@ -349,6 +403,7 @@ class Pager:
         self.rows = []
         self.page = 0
         self.height = 0
+        self.want_row = None  # show_row() before the first measurement: applied on render
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, vexpand=True)
         self.area = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, vexpand=True)
         self.area.connect("size-allocate", self._allocated)
@@ -375,15 +430,24 @@ class Pager:
             self.page = 0
         self.render()
 
+    FOOT = 48  # arrow bar (40 px buttons) + the 8 px gap above it
+
     def pages(self):
         """Split rows into pages that fit the measured height. Nothing until measured: showing the
-        whole list first would make the content guard measure the full list, not the screen."""
+        whole list first would make the content guard measure the full list, not the screen.
+        More than one page: the arrow bar takes FOOT px, so split again with less room."""
         if self.height <= 0:
             return [[]]
+        pages = self._split(self.height)
+        if len(pages) > 1:
+            pages = self._split(self.height - self.FOOT)
+        return pages
+
+    def _split(self, budget):
         pages, cur, used = [], [], 0
         for widget, kind in self.rows:
             h = ROW_HEIGHTS.get(kind, 44) + (self.spacing if cur else 0)
-            if cur and used + h > self.height:
+            if cur and used + h > budget:
                 if cur[-1][1] == "section":  # don't leave a heading alone at the bottom
                     pages.append(cur[:-1])
                     cur, used = [cur[-1]], ROW_HEIGHTS["section"]
@@ -399,6 +463,14 @@ class Pager:
 
     def render(self):
         pages = self.pages()
+        if self.want_row is not None and self.height > 0:
+            seen = 0
+            for n, pg in enumerate(pages):
+                seen += len(pg)
+                if self.want_row < seen:
+                    self.page = n
+                    break
+            self.want_row = None
         self.page = max(0, min(self.page, len(pages) - 1))
         for c in self.list.get_children():
             self.list.remove(c)
@@ -420,6 +492,9 @@ class Pager:
 
     def show_row(self, index):
         """Go to the page that holds rows[index] (e.g. a part tapped on the bed map)."""
+        if self.height <= 0:
+            self.want_row = index
+            return
         seen = 0
         for n, page in enumerate(self.pages()):
             seen += len(page)
@@ -430,7 +505,10 @@ class Pager:
                 return
 
     def _allocated(self, widget, alloc):
-        # The footer takes space only when shown; measure the list area without it the first time
+        # Measure only while the arrow bar is hidden (the full space); with the bar shown the
+        # list's own height keeps the area from shrinking, so later sizes aren't the free space.
+        if self.foot.get_visible():
+            return
         if alloc.height != self.height:
             self.height = alloc.height
             GLib.idle_add(self._rerender)
@@ -438,6 +516,82 @@ class Pager:
     def _rerender(self):
         self.render()
         return False
+
+
+def row(name, note="", cb=None, sensitive=True, css_note="ss-muted"):
+    """Full-width settings row: name left, small note right (ss-row, 44 px)."""
+    b = Gtk.Button(can_focus=False, hexpand=True)
+    box = Gtk.Box(spacing=8)
+    box.pack_start(label(name, "ss-row-title", ellipsize=True), True, True, 0)
+    box.pack_end(label(note, css_note, xalign=1.0), False, False, 0)
+    b.add(box)
+    b.get_style_context().add_class("ss-btn")
+    b.get_style_context().add_class("ss-row")
+    b.set_sensitive(sensitive)
+    if cb:
+        b.connect("clicked", lambda w: cb())
+    return b
+
+
+def row2(name, sub, cb=None, sensitive=True):
+    """Two-line row (ss-row-tall, 54 px): name, and a smaller line under it. kind "tall"."""
+    b = Gtk.Button(can_focus=False, hexpand=True)
+    txt = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, valign=Gtk.Align.CENTER)
+    txt.add(label(name, "ss-row-title", ellipsize=True))
+    if sub:
+        txt.add(label(sub, "ss-btn-sub", ellipsize=True))
+    b.add(txt)
+    for c in ("ss-btn", "ss-row", "ss-row-tall"):
+        b.get_style_context().add_class(c)
+    b.set_sensitive(sensitive)
+    if cb:
+        b.connect("clicked", lambda w: cb())
+    return b
+
+
+def switch_row(name, sub, on, cb):
+    """Row with the ON/OFF pill (same look as Settings › Advanced mode). cb() on tap."""
+    b = Gtk.Button(can_focus=False, hexpand=True)
+    box = Gtk.Box(spacing=10, valign=Gtk.Align.CENTER)
+    txt = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, valign=Gtk.Align.CENTER)
+    txt.add(label(name, "ss-row-title"))
+    if sub:
+        txt.add(label(sub, "ss-btn-sub", ellipsize=True))
+    box.pack_start(txt, True, True, 0)
+    track = Gtk.Box(valign=Gtk.Align.CENTER, halign=Gtk.Align.END)
+    track.set_size_request(56, 28)
+    track.get_style_context().add_class("ss-switch-on" if on else "ss-switch-off")
+    state = label(_("ON") if on else _("OFF"), "ss-switch-text", xalign=0.5)
+    state.set_halign(Gtk.Align.CENTER)
+    state.set_valign(Gtk.Align.CENTER)
+    track.set_center_widget(state)
+    box.pack_end(track, False, False, 0)
+    b.add(box)
+    for c in ("ss-btn", "ss-row", "ss-row-tall" if sub else "ss-row"):
+        b.get_style_context().add_class(c)
+    b.connect("clicked", lambda w: cb())
+    return b
+
+
+def choose(screen, title, options, current, on_pick):
+    """Pick one of [(value, label)] on its own page (pages with arrows). on_pick(value)."""
+    _push(
+        screen,
+        "ss_choose",
+        ss_title=title,
+        ss_options=options,
+        ss_current=current,
+        ss_on_pick=on_pick,
+    )
+
+
+def list_page(title):
+    """Page with a title and a Pager under it: returns (page, pager)."""
+    page = page_box(spacing=6)
+    page.pack_start(label(title, "ss-page-title"), False, False, 0)
+    pager = Pager()
+    page.pack_start(pager.box, True, True, 0)
+    return page, pager
 
 
 def page_box(spacing=8):
@@ -507,7 +661,15 @@ def info(screen, title, body):
 
 
 def close_dialog(screen):
-    popups = ("ss_dialog", "ss_adjust", "ss_cancel_object", "ss_filament", "ss_prompt", "ss_usb")
+    popups = (
+        "ss_dialog",
+        "ss_adjust",
+        "ss_cancel_object",
+        "ss_filament",
+        "ss_prompt",
+        "ss_usb",
+        "ss_choose",
+    )
     if screen._cur_panels and screen._cur_panels[-1] in popups:
         screen._menu_go_back()
 
@@ -530,6 +692,9 @@ def bed_clear_then_print(screen, filename):
 
 
 def ask_estop(screen):
+    if not get_setting("confirm_estop", True):  # Screen & language › Confirm emergency stop
+        screen._ws.api.emergency_stop()
+        return
     confirm(
         screen,
         _("Emergency stop?"),

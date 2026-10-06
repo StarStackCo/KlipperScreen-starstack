@@ -381,6 +381,9 @@ button.ss-btn-white label { color: @bg; font-weight: 900; }
 .ss-content-guard, .ss-content-guard viewport { background-color: @bg; border: 0; }
 .ss-logo-plate { background-color: #F8F8F8; border-radius: 10px; padding: 12px 18px; }
 .ss-starting-title { font-size: 16px; font-weight: 800; }
+/* Boot / starting progress bar (klipper-ui D-070): same look as the boot splash bar */
+progressbar.ss-boot-bar trough { min-height: 6px; min-width: 200px; background-color: @lines; border: none; border-radius: 3px; }
+progressbar.ss-boot-bar progress { min-height: 6px; background-color: @accent; border: none; border-radius: 3px; }
 
 /* STARSTACK-ADDED: on-screen keyboard (hook #13 in screen.py adds .ss-keyboard)
    Keys ≥ 44 px tall, ≥ 14 px from the screen edges, flat dark keys like the rest of the UI. */
