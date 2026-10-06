@@ -100,3 +100,13 @@ Numbers **2–16** are edits inside upstream KlipperScreen files: the code carri
 | 35 | 2026-10-05 | `panels/ss_console.py` | Console with the command box at the top (stock one has it at the bottom edge); opened from Settings › Advanced |
 | 36 | 2026-10-05 | `panels/ss_network.py` | StarStack Wi-Fi page (klipper-ui B-6): one row per network, tap to connect, password with the StarStack keyboard, Disconnect/Forget in `ss_dialog` (now with an optional third button). Upstream's `sdbus_nm` backend unchanged; enterprise Wi-Fi via the stock page |
 | 37 | 2026-10-05 | `panels/ss_usb.py` | "USB stick: N new files copied" prompt with "Print this one now?" for the newest file (klipper-ui D-065). Opened by `StarStackRail` when klipper-ui's USB import writes `gcodes/.starstack/usb_import.json` |
+| 38 | 2026-10-06 | `panels/ss_choose.py` | Generic "pick one" page (`ss.choose()`), pages with arrows |
+| 39 | 2026-10-06 | `panels/ss_screen.py` | Screen & language (replaces stock settings): screen sleep, sleep while printing, 24 h clock, language, **Confirm emergency stop** (StarStack setting, default ON, used by the STOP button) |
+| 40 | 2026-10-06 | `panels/ss_about.py` | About this printer (replaces stock system panel) |
+| 41 | 2026-10-06 | `panels/ss_power.py` | Shut down / reboot / restart Klipper / restart touchscreen, each confirmed, locked while printing (replaces stock shutdown panel) |
+| 42 | 2026-10-06 | `panels/ss_extrude.py` | Extrude / retract (replaces stock extrude panel): nozzle temp, amount + speed chips, blocked when cold |
+| 43 | 2026-10-06 | `panels/ss_updates.py` | Updates (replaces stock updater): Moonraker update manager in pages, confirmed, locked while printing |
+| 44 | 2026-10-06 | `panels/ss_fans.py` | Fans: settable part/generic fans, automatic fans read-only |
+| 45 | 2026-10-06 | `panels/ss_move.py` | Move axes with fine steps, only homed axes move |
+| 46 | 2026-10-06 | `panels/ss_bed_mesh.py` | Bed mesh: colour map, Calibrate, Profile, Clear, Save (SAVE_CONFIG) |
+| 47 | 2026-10-06 | `panels/ss_shaper.py` | Input shaper: current shaper, Measure (needs accelerometer), Save |

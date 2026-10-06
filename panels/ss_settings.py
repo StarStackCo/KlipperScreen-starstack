@@ -80,13 +80,10 @@ class Panel(ScreenPanel):
                 ),
                 (_("Console"), _("type G-code"), lambda: self.open("ss_console", _("Console"))),
                 (_("Updates"), "", lambda: self.open("ss_updates", _("Updates"))),
-                (
-                    _("All KlipperScreen tools"),
-                    _("bed mesh, etc."),
-                    lambda: self.open(
-                        "main_menu", _("KlipperScreen"), items=self._config.get_menu_items("__main")
-                    ),
-                ),
+                (_("Move axes"), _("fine steps"), lambda: self.open("ss_move", _("Move"))),
+                (_("Fans"), "", lambda: self.open("ss_fans", _("Fans"))),
+                (_("Bed mesh"), "", lambda: self.open("ss_bed_mesh", _("Bed mesh"))),
+                (_("Input shaper"), "", lambda: self.open("ss_shaper", _("Input shaper"))),
                 (_("Restart firmware"), "", self.ask_restart),
             ]:
                 rows.append((self.row(name, note, cb), "row"))

@@ -497,7 +497,9 @@ class Panel(ScreenPanel):
             duration = job.get("print_duration")
             if duration:
                 label.set_markup(
-                    fileinfo_text + _("\nLast Duration") + f": <b>{self.format_time(duration)}</b>"
+                    fileinfo_text
+                    + _("\nLast Duration")
+                    + f": <b>{self.format_time(duration)}</b>"
                 )
 
     def load_files(self, result, method, params):
