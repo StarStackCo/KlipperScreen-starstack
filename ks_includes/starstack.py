@@ -357,9 +357,10 @@ class Pager:
         for widget, _kind in pages[self.page]:
             self.list.add(widget)
         many = len(pages) > 1
-        self.foot.set_visible(many)
         if many:
-            self.foot.show_all()
+            for c in self.foot.get_children():  # show_all() skips no_show_all widgets
+                c.show_all()
+        self.foot.set_visible(many)
         self.note.set_text(_("Page") + f" {self.page + 1} / {len(pages)}")
         self.prev.set_sensitive(self.page > 0)
         self.next.set_sensitive(self.page < len(pages) - 1)
