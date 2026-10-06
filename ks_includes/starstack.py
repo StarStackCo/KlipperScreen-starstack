@@ -376,15 +376,24 @@ class Pager:
             self.page = 0
         self.render()
 
+    FOOT = 48  # arrow bar (40 px buttons) + the 8 px gap above it
+
     def pages(self):
         """Split rows into pages that fit the measured height. Nothing until measured: showing the
-        whole list first would make the content guard measure the full list, not the screen."""
+        whole list first would make the content guard measure the full list, not the screen.
+        More than one page: the arrow bar takes FOOT px, so split again with less room."""
         if self.height <= 0:
             return [[]]
+        pages = self._split(self.height)
+        if len(pages) > 1:
+            pages = self._split(self.height - self.FOOT)
+        return pages
+
+    def _split(self, budget):
         pages, cur, used = [], [], 0
         for widget, kind in self.rows:
             h = ROW_HEIGHTS.get(kind, 44) + (self.spacing if cur else 0)
-            if cur and used + h > self.height:
+            if cur and used + h > budget:
                 if cur[-1][1] == "section":  # don't leave a heading alone at the bottom
                     pages.append(cur[:-1])
                     cur, used = [cur[-1]], ROW_HEIGHTS["section"]
@@ -442,7 +451,10 @@ class Pager:
                 return
 
     def _allocated(self, widget, alloc):
-        # The footer takes space only when shown; measure the list area without it the first time
+        # Measure only while the arrow bar is hidden (the full space); with the bar shown the
+        # list's own height keeps the area from shrinking, so later sizes aren't the free space.
+        if self.foot.get_visible():
+            return
         if alloc.height != self.height:
             self.height = alloc.height
             GLib.idle_add(self._rerender)
