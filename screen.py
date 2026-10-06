@@ -949,6 +949,10 @@ class KlipperScreen(Gtk.ApplicationWindow):
         self.files.refresh_files()
         # STARSTACK-CHANGE #8 BEGIN: StarStack Home replaces main_menu
         if starstack.enabled(self):
+            if self._cur_panels[-1:] == ["ss_starting"]:
+                # fill the progress bar to the end first, then Home (klipper-ui D-071)
+                self.panels["ss_starting"].finish(self._ss_ready_done)
+                return
             if not self._cur_panels or self._cur_panels[0] != "ss_home":
                 self.show_panel("ss_home", remove_all=True)
             self.check_active_commands()
@@ -957,7 +961,13 @@ class KlipperScreen(Gtk.ApplicationWindow):
         self.show_panel("main_menu", remove_all=True, items=self._config.get_menu_items("__main"))
         self.check_active_commands()
 
-    # STARSTACK-CHANGE #8 BEGIN: helper for the StarStack stopped screen
+    # STARSTACK-CHANGE #8 BEGIN: helpers for the StarStack Home and stopped screens
+    def _ss_ready_done(self):
+        # the starting screen's bar is full: go Home if the printer is still ready
+        if self._cur_panels[-1:] == ["ss_starting"] and self.printer.state == "ready":
+            self.show_panel("ss_home", remove_all=True)
+            self.check_active_commands()
+
     def _ss_stopped(self, kind, msg):
         if "ss_stopped" in self.panels:
             self.panels_reinit = list(set(getattr(self, "panels_reinit", []) + ["ss_stopped"]))

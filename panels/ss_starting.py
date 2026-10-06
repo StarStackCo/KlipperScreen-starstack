@@ -3,7 +3,8 @@
 # screen.py printer_initializing). Shutdown/error states use ss_stopped instead.
 # Same API as the stock splash: update_text(msg).
 # Progress bar (klipper-ui D-070): after power-up it continues the boot splash's bar (same
-# estimate, from uptime); after a restart it fills over ~12 s. Never reaches 100 % by itself.
+# estimate, from uptime); after a restart it fills over ~12 s. It only reaches 100 % when the
+# printer is ready: finish() fills it to the end, then screen.py opens Home (D-071).
 import time
 
 import gi
@@ -48,8 +49,6 @@ class Panel(ScreenPanel):
         self.bar.get_style_context().add_class("ss-boot-bar")
         self.bar.set_size_request(200, -1)
         center.add(self.bar)
-        self.sub_lbl = ss.label(_("This usually takes 10 to 30 seconds."), "ss-muted", xalign=0.5)
-        center.add(self.sub_lbl)
         page.pack_start(center, True, True, 0)
 
         self.details = ss.label("", "ss-btn-sub", wrap=True, xalign=0.5)
@@ -70,6 +69,7 @@ class Panel(ScreenPanel):
         self.content.show_all()
         self.update_text(_("Initializing printer..."))
         self.timer = None
+        self.finishing = None
         self.started = time.monotonic()
         # First screen of this app: stop the boot splash, then repaint everything once in case
         # its last frame landed on top of us
@@ -78,11 +78,42 @@ class Panel(ScreenPanel):
 
     def activate(self):
         self.started = time.monotonic()
+        self.finishing = None
         self.tick()
         if self.timer is None:
             self.timer = GLib.timeout_add(250, self.tick)
 
+    def finish(self, done):
+        """Printer ready: run the bar to the end (~0.4 s), then call done()."""
+        if self.finishing is not None:
+            return  # already on the way
+        if self.timer is not None:
+            GLib.source_remove(self.timer)
+            self.timer = None
+        start = self.bar.get_fraction()
+        self.finishing = 0
+
+        def step():
+            self.finishing += 1
+            self.bar.set_fraction(min(1.0, start + (1 - start) * self.finishing / 8))
+            if self.finishing < 8:
+                return True
+            GLib.timeout_add(200, self.finished, done)
+            return False
+
+        GLib.timeout_add(50, step)
+
+    def finished(self, done):
+        self.finishing = None
+        done()
+        if self._screen._cur_panels[-1:] == ["ss_starting"]:  # not ready after all: carry on
+            self.activate()
+        return False
+
     def tick(self):
+        if self.finishing is not None:
+            self.timer = None
+            return False
         if not self._screen._cur_panels or self._screen._cur_panels[-1] != "ss_starting":
             self.timer = None
             return False
