@@ -44,9 +44,9 @@ class Panel(ScreenPanel):
         for name in sorted(self._printer.get_gcode_macros(), key=str.upper):
             desc, params = self.macro_info(name)
             note = desc if desc and desc != "G-Code macro" else ""
-            if params and not note:
-                note = _("settings") + " ›"
-            rows.append((ss.row(name.upper(), note, lambda n=name: self.tapped(n)), "row"))
+            if params:
+                note = (note + " · " if note else "") + _("has settings") + " ›"
+            rows.append((ss.row2(name.upper(), note, lambda n=name: self.tapped(n)), "tall"))
         if not rows:
             rows.append((ss.label(_("No macros found."), "ss-muted"), "text"))
         self.pager.set_rows(rows)

@@ -479,6 +479,22 @@ def row(name, note="", cb=None, sensitive=True, css_note="ss-muted"):
     return b
 
 
+def row2(name, sub, cb=None, sensitive=True):
+    """Two-line row (ss-row-tall, 54 px): name, and a smaller line under it. kind "tall"."""
+    b = Gtk.Button(can_focus=False, hexpand=True)
+    txt = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, valign=Gtk.Align.CENTER)
+    txt.add(label(name, "ss-row-title", ellipsize=True))
+    if sub:
+        txt.add(label(sub, "ss-btn-sub", ellipsize=True))
+    b.add(txt)
+    for c in ("ss-btn", "ss-row", "ss-row-tall"):
+        b.get_style_context().add_class(c)
+    b.set_sensitive(sensitive)
+    if cb:
+        b.connect("clicked", lambda w: cb())
+    return b
+
+
 def switch_row(name, sub, on, cb):
     """Row with the ON/OFF pill (same look as Settings › Advanced mode). cb() on tap."""
     b = Gtk.Button(can_focus=False, hexpand=True)

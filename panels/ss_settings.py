@@ -48,7 +48,7 @@ class Panel(ScreenPanel):
         txt.add(ss.label(_("Advanced mode"), "ss-row-title"))
         txt.add(
             ss.label(
-                _("Pressure advance, extrude, macros, console, limits"),
+                _("Extrude, macros, console, bed mesh, tools"),
                 "ss-btn-sub",
                 ellipsize=True,
             )
