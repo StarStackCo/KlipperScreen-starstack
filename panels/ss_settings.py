@@ -48,7 +48,7 @@ class Panel(ScreenPanel):
         txt.add(ss.label(_("Advanced mode"), "ss-row-title"))
         txt.add(
             ss.label(
-                _("Extrude, macros, console, bed mesh, tools"),
+                _("Extrude, console, bed mesh, tools"),
                 "ss-btn-sub",
                 ellipsize=True,
             )
@@ -78,7 +78,6 @@ class Panel(ScreenPanel):
                     _("blocked when cold"),
                     lambda: self.open("extrude", _("Extrude")),
                 ),
-                (_("Macros"), "", lambda: self.open("ss_macros", _("Macros"))),
                 (_("Console"), _("type G-code"), lambda: self.open("ss_console", _("Console"))),
                 (_("Updates"), "", lambda: self.open("ss_updates", _("Updates"))),
                 (
