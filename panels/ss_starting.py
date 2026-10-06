@@ -46,7 +46,7 @@ class Panel(ScreenPanel):
         self.title_lbl = ss.label(_("Starting printer…"), "ss-starting-title", xalign=0.5)
         status.add(self.title_lbl)
         center.add(status)
-        self.sub_lbl = ss.label(_("This usually takes about 10 seconds."), "ss-muted", xalign=0.5)
+        self.sub_lbl = ss.label(_("This usually takes 10 to 30 seconds."), "ss-muted", xalign=0.5)
         center.add(self.sub_lbl)
         page.pack_start(center, True, True, 0)
 
