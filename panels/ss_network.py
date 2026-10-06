@@ -33,6 +33,7 @@ class Panel(ScreenPanel):
         self.timer = None
         self.shown = None  # what the list currently shows, to rebuild only on changes
         self.last_scan = 0
+        self.mute_until = 0
         self.pw_ssid = None
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.NONE)
         self.stack.set_vhomogeneous(False)  # size to the visible page, so the keyboard fits
@@ -54,6 +55,9 @@ class Panel(ScreenPanel):
         self.stack.set_visible_child_name("list")
 
     def popup(self, msg, level=3):
+        if time.monotonic() < self.mute_until:
+            logging.info(f"StarStack Wi-Fi: muted pop-up while switching the radio: {msg}")
+            return
         self._screen.show_popup_message(msg, level)
 
     # ------------------------------------------------------------------ pages
@@ -320,17 +324,9 @@ class Panel(ScreenPanel):
         GLib.timeout_add_seconds(1, self._refresh_once)
 
     def quiet_monitor(self):
-        """Turning the radio on/off changes the device state, which the backend's monitor would
-        announce as "Network disconnected". Pause it and restart it with a fresh baseline."""
-        self.nm.set_connection_monitoring(False)
-        GLib.timeout_add_seconds(5, self._restart_monitor)
-
-    def _restart_monitor(self):
-        if self.timer is not None and self.nm.wifi:  # page still open
-            self.nm.wifi_state = -1  # first state seen again = baseline, no pop-up
-            self.nm.set_connection_monitoring(True)
-            GLib.timeout_add_seconds(1, self.nm.monitor_connection_status)
-        return False
+        """Switching the radio on/off changes the adapter's state, which the backend's monitor
+        announces as "Network disconnected". Mute its pop-ups for a few seconds instead."""
+        self.mute_until = time.monotonic() + 8
 
     def _refresh_once(self):
         self.refresh()
