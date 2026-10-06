@@ -76,7 +76,7 @@ class Panel(ScreenPanel):
                 (
                     _("Extrude / retract"),
                     _("blocked when cold"),
-                    lambda: self.open("extrude", _("Extrude")),
+                    lambda: self.open("ss_extrude", _("Extrude")),
                 ),
                 (_("Console"), _("type G-code"), lambda: self.open("ss_console", _("Console"))),
                 (_("Updates"), "", lambda: self.open("ss_updates", _("Updates"))),
