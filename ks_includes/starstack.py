@@ -12,11 +12,12 @@
 import json
 import logging
 import os
+import time
 
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, Pango
+from gi.repository import GLib, Gtk, Pango
 
 THEME = "starstack"
 MATERIALS = {"PLA": (210, 60), "PETG": (240, 80), "TPU": (225, 40)}
@@ -161,6 +162,53 @@ def _thumb_metadata_arrived(action, data):
             thumbnail(panel, filename, size, image)
 
 
+# ---------------------------------------------------------------- starter prints + USB import
+# Preloaded test prints live in this folder of the print jobs folder (D-066). Home shows them as
+# "Get started" until the printer has a print history or files of its own.
+STARTER_DIR = "Starter prints"
+
+
+def is_starter(path):
+    return path.split("/", 1)[0] == STARTER_DIR
+
+
+def starter_files(files):
+    """Starter prints (folder above), else any Benchy on the printer (bench/older installs)."""
+    paths = [p for p in files.files if is_starter(p)]
+    if not paths:
+        paths = [
+            p
+            for p in files.files
+            if "benchy" in p.lower() and not os.path.basename(p).startswith("ss_bench")
+        ]
+    return sorted(paths, key=lambda p: ("benchy" not in p.lower(), p.lower()))
+
+
+_usb_cache = {"mtime": None, "data": {}}
+
+
+def usb_import_path(files):
+    return os.path.join(files.gcodes_path or "", ".starstack", "usb_import.json")
+
+
+def usb_import(files):
+    """Last USB stick import written by klipper-ui tools/usb_import.py ({} if none)."""
+    path = usb_import_path(files)
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return {}
+    if mtime != _usb_cache["mtime"]:
+        try:
+            with open(path, encoding="utf-8") as f:
+                _usb_cache["data"] = json.load(f)
+        except (OSError, ValueError) as e:
+            logging.warning(f"StarStack: can't read {path}: {e}")
+            _usb_cache["data"] = {}
+        _usb_cache["mtime"] = mtime
+    return _usb_cache["data"]
+
+
 def pretty_name(filename):
     base = os.path.splitext(os.path.basename(filename or ""))[0]
     for sep in ("_PLA", "_PETG", "_TPU", "_ABS", "_ASA"):
@@ -285,6 +333,113 @@ def section(text):
     return label(text.upper(), "ss-section")
 
 
+# Row heights from style.css (button.ss-row 44 px, ss-row-tall 54 px, .ss-section label), used by
+# Pager to decide what fits on a page before the rows are on screen.
+ROW_HEIGHTS = {"row": 44, "tall": 54, "obj": 36, "section": 14, "text": 18}
+
+
+class Pager:
+    """A list shown one page at a time with ‹ Page x / y › arrows, like the Print page.
+    Used instead of scrolling: drag-scrolling is unreliable on the resistive TFT (D-064).
+    rows: list of (widget, kind) with kind in ROW_HEIGHTS. The page size follows the space
+    the list actually gets on screen, so nothing is cut off."""
+
+    def __init__(self, spacing=6):
+        self.spacing = spacing
+        self.rows = []
+        self.page = 0
+        self.height = 0
+        self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, vexpand=True)
+        self.area = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, vexpand=True)
+        self.area.connect("size-allocate", self._allocated)
+        self.list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=spacing)
+        self.area.pack_start(self.list, False, False, 0)
+        self.box.pack_start(self.area, True, True, 0)
+        self.foot = Gtk.Box(spacing=8)
+        self.prev = button("‹", css="ss-btn ss-btn-outline ss-btn-pager")
+        self.prev.set_hexpand(False)
+        self.prev.connect("clicked", self.turn, -1)
+        self.next = button("›", css="ss-btn ss-btn-outline ss-btn-pager")
+        self.next.set_hexpand(False)
+        self.next.connect("clicked", self.turn, 1)
+        self.note = label("", "ss-muted", xalign=0.5)
+        self.foot.pack_start(self.prev, False, False, 0)
+        self.foot.pack_start(self.note, True, True, 0)
+        self.foot.pack_end(self.next, False, False, 0)
+        self.box.pack_end(self.foot, False, False, 0)
+        self.foot.set_no_show_all(True)  # only shown when there is more than one page
+
+    def set_rows(self, rows, reset=False):
+        self.rows = rows
+        if reset:
+            self.page = 0
+        self.render()
+
+    def pages(self):
+        """Split rows into pages that fit the measured height. Nothing until measured: showing the
+        whole list first would make the content guard measure the full list, not the screen."""
+        if self.height <= 0:
+            return [[]]
+        pages, cur, used = [], [], 0
+        for widget, kind in self.rows:
+            h = ROW_HEIGHTS.get(kind, 44) + (self.spacing if cur else 0)
+            if cur and used + h > self.height:
+                if cur[-1][1] == "section":  # don't leave a heading alone at the bottom
+                    pages.append(cur[:-1])
+                    cur, used = [cur[-1]], ROW_HEIGHTS["section"]
+                    h = ROW_HEIGHTS.get(kind, 44) + self.spacing
+                else:
+                    pages.append(cur)
+                    cur, used = [], 0
+                    h = ROW_HEIGHTS.get(kind, 44)
+            cur.append((widget, kind))
+            used += h
+        pages.append(cur)
+        return pages
+
+    def render(self):
+        pages = self.pages()
+        self.page = max(0, min(self.page, len(pages) - 1))
+        for c in self.list.get_children():
+            self.list.remove(c)
+        for widget, _kind in pages[self.page]:
+            self.list.add(widget)
+        many = len(pages) > 1
+        if many:
+            for c in self.foot.get_children():  # show_all() skips no_show_all widgets
+                c.show_all()
+        self.foot.set_visible(many)
+        self.note.set_text(_("Page") + f" {self.page + 1} / {len(pages)}")
+        self.prev.set_sensitive(self.page > 0)
+        self.next.set_sensitive(self.page < len(pages) - 1)
+        self.list.show_all()
+
+    def turn(self, widget, d):
+        self.page += d
+        self.render()
+
+    def show_row(self, index):
+        """Go to the page that holds rows[index] (e.g. a part tapped on the bed map)."""
+        seen = 0
+        for n, page in enumerate(self.pages()):
+            seen += len(page)
+            if index < seen:
+                if n != self.page:
+                    self.page = n
+                    self.render()
+                return
+
+    def _allocated(self, widget, alloc):
+        # The footer takes space only when shown; measure the list area without it the first time
+        if alloc.height != self.height:
+            self.height = alloc.height
+            GLib.idle_add(self._rerender)
+
+    def _rerender(self):
+        self.render()
+        return False
+
+
 def page_box(spacing=8):
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=spacing, hexpand=True, vexpand=True)
     box.get_style_context().add_class("ss-page")
@@ -312,8 +467,18 @@ def _push(screen, panel, **kwargs):
     screen.show_panel(panel, **kwargs)
 
 
-def confirm(screen, title, body, yes_label, on_yes, kind="primary", no_label=None):
-    """kind: primary | danger | warning"""
+def confirm(
+    screen,
+    title,
+    body,
+    yes_label,
+    on_yes,
+    kind="primary",
+    no_label=None,
+    alt_label=None,
+    on_alt=None,
+):
+    """kind: primary | danger | warning. alt_label/on_alt: optional third (outline) button."""
     _push(
         screen,
         "ss_dialog",
@@ -323,6 +488,8 @@ def confirm(screen, title, body, yes_label, on_yes, kind="primary", no_label=Non
         ss_no=no_label or _("Go back"),
         ss_on_yes=on_yes,
         ss_kind=kind,
+        ss_alt=alt_label,
+        ss_on_alt=on_alt,
     )
 
 
@@ -340,7 +507,7 @@ def info(screen, title, body):
 
 
 def close_dialog(screen):
-    popups = ("ss_dialog", "ss_adjust", "ss_cancel_object", "ss_filament", "ss_prompt")
+    popups = ("ss_dialog", "ss_adjust", "ss_cancel_object", "ss_filament", "ss_prompt", "ss_usb")
     if screen._cur_panels and screen._cur_panels[-1] in popups:
         screen._menu_go_back()
 
@@ -438,9 +605,30 @@ class StarStackRail:
         slot(self.stop, 52, 52)
         self.update_stop()
         self._contain_content(base)
+        self.usb_seen = None  # mtime of the last USB import we already announced
+        GLib.timeout_add_seconds(2, self._usb_check)
         from ks_includes import starstack_devtools  # bench-only, inactive without ~/.starstack_dev
 
         starstack_devtools.start(self.screen)
+
+    def _usb_check(self):
+        """A USB stick import finished (klipper-ui usb/): show what was copied (D-065)."""
+        files = self.screen.files
+        if files is None or not files.gcodes_path:
+            return True
+        try:
+            mtime = os.path.getmtime(usb_import_path(files))
+        except OSError:
+            mtime = 0
+        if self.usb_seen is None:  # first look after start: don't announce an old import
+            self.usb_seen = mtime
+            return True
+        if mtime != self.usb_seen:
+            self.usb_seen = mtime
+            report = usb_import(files)
+            if report and time.time() - report.get("time", 0) < 300:
+                _push(self.screen, "ss_usb", ss_report=report)
+        return True
 
     @staticmethod
     def _contain_content(base):

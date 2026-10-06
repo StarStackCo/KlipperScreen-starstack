@@ -79,7 +79,7 @@ MAP = {
     "wifi_excellent": ("wifi", WHITE),
     "wifi_good": ("wifi-2", WHITE),
     "wifi_fair": ("wifi-1", WHITE),
-    "wifi_weak": ("wifi-off", HOT),
+    "wifi_weak": ("wifi-1", HOT),  # one bar in orange ("wifi-off" read as disconnected)
     "light": ("lightbulb", WHITE),
     "camera": ("camera", WHITE),
     "sd": ("sd-card", WHITE),
@@ -101,6 +101,7 @@ MAP = {
     "custom-script": ("code-square", WHITE),
     "hashtag": ("hash", WHITE),
     "spool": ("disc", WHITE),
+    "usb": ("usb-drive", SKY),
 }
 GRAPH = {
     "graph_colors": {

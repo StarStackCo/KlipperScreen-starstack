@@ -1,5 +1,5 @@
 # STARSTACK-ADDED: Settings page (FORK_CHANGES.md #25)
-# Scrolls: Advanced mode + tools + printer settings
+# Pages with ‹ › arrows (no scrolling, D-064): Advanced mode + tools + printer settings
 # Advanced tools live here so Controls never scrolls (D-029). Stock KlipperScreen panels are reused.
 import gi
 
@@ -13,11 +13,12 @@ from ks_includes.screen_panel import ScreenPanel
 class Panel(ScreenPanel):
     def __init__(self, screen, title, **kwargs):
         super().__init__(screen, title)
-        self.list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        self.list.get_style_context().add_class("ss-page")
-        scroll = self._gtk.ScrolledWindow()
-        scroll.add(self.list)
-        self.content.add(scroll)
+        page = ss.page_box(spacing=6)
+        page.pack_start(ss.label(_("Settings"), "ss-page-title"), False, False, 0)
+        self.pager = ss.Pager()
+        page.pack_start(self.pager.box, True, True, 0)
+        self.content.add(page)
+        self.content.show_all()
         self.build()
 
     def row(self, name, note="", cb=None, sensitive=True):
@@ -36,12 +37,10 @@ class Panel(ScreenPanel):
     def open(self, panel, title, **kw):
         self._screen.show_panel(panel, title, **kw)
 
-    def build(self):
-        for c in self.list.get_children():
-            self.list.remove(c)
+    def build(self, reset=False):
+        rows = []
         adv = ss.advanced()
         printing = ss.is_printing(self._printer)
-        self.list.add(ss.label(_("Settings"), "ss-page-title"))
 
         sw = Gtk.Button(can_focus=False, hexpand=True)
         box = Gtk.Box(spacing=10, valign=Gtk.Align.CENTER)
@@ -69,10 +68,10 @@ class Panel(ScreenPanel):
         sw.get_style_context().add_class("ss-row")
         sw.get_style_context().add_class("ss-row-tall")
         sw.connect("clicked", self.toggle_advanced)
-        self.list.add(sw)
+        rows.append((sw, "tall"))
 
         if adv:
-            self.list.add(ss.label(_("ADVANCED"), "ss-section ss-text-warning"))
+            rows.append((ss.label(_("ADVANCED"), "ss-section ss-text-warning"), "section"))
             for name, note, cb in [
                 (
                     _("Extrude / retract"),
@@ -92,12 +91,12 @@ class Panel(ScreenPanel):
                 ),
                 (_("Restart firmware"), "", self.ask_restart),
             ]:
-                self.list.add(self.row(name, note, cb))
+                rows.append((self.row(name, note, cb), "row"))
 
-        self.list.add(ss.label(_("PRINTER"), "ss-section"))
+        rows.append((ss.label(_("PRINTER"), "ss-section"), "section"))
         lock = " · " + _("locked while printing") if printing else ""
         for name, note, cb, ok in [
-            (_("Wi-Fi"), "", lambda: self.open("network", _("Network")), True),
+            (_("Wi-Fi"), "", lambda: self.open("ss_network", _("Wi-Fi")), True),
             (
                 _("Screen & language"),
                 _("brightness, sleep, 24 h"),
@@ -112,8 +111,8 @@ class Panel(ScreenPanel):
                 not printing,
             ),
         ]:
-            self.list.add(self.row(name, note, cb, ok))
-        self.list.show_all()
+            rows.append((self.row(name, note, cb, ok), "row"))
+        self.pager.set_rows(rows, reset=reset)
 
     def toggle_advanced(self, *args):
         if ss.advanced():
@@ -146,4 +145,4 @@ class Panel(ScreenPanel):
         )
 
     def activate(self):
-        self.build()
+        self.build(reset=True)
