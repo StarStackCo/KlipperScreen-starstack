@@ -43,8 +43,14 @@ class Panel(ScreenPanel):
         card.add(head)
 
         if copied:
-            body = _(
-                "New files were copied to the print jobs folder. You can remove the USB stick."
+            body = (
+                (
+                    _("The new file was copied to the print jobs folder.")
+                    if len(copied) == 1
+                    else _("New files were copied to the print jobs folder.")
+                )
+                + " "
+                + _("You can remove the USB stick.")
             )
         elif report.get("skipped"):
             body = _(
@@ -64,7 +70,7 @@ class Panel(ScreenPanel):
                 )
             )
 
-        offer = bool(self.newest) and not busy and self.newest in self._files.files
+        offer = bool(self.newest) and not busy  # file list may lag a moment; thumbnail waits
         if offer:
             card.add(ss.label(_("Print this one now?"), "ss-row-title"))
             row = Gtk.Box(spacing=10)
