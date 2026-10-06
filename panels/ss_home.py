@@ -123,7 +123,7 @@ class Panel(ScreenPanel):
         t = self.thumb(fn, 72)
         t.set_size_request(72, 72)
         card.pack_start(t, False, False, 0)
-        info = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        info = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         head = Gtk.Box(spacing=6)
         head.pack_start(ss.section(_("Newest file")), False, False, 0)
         if fn in ss.usb_import(self._files).get("copied", []):
