@@ -74,6 +74,9 @@ class Cover:
     def hide(self):
         self.win.hide()
 
+    def destroy(self):
+        self.win.destroy()
+
 
 def plain(msg):
     m = (msg or "").lower()
@@ -130,9 +133,8 @@ class Panel(ScreenPanel):
         self.timer = None
         self.finishing = None
         self.started = time.monotonic()
-        self.cover = Cover.load(screen)
-        if self.cover:
-            self.cover.show()
+        self.cover = None
+        self.show_cover()
         # First screen of this app: stop the boot splash, then repaint everything once in case
         # its last frame landed on top of us
         ss.boot_ui_up()
@@ -141,8 +143,7 @@ class Panel(ScreenPanel):
     def activate(self):
         self.started = time.monotonic()
         self.finishing = None
-        if self.cover:
-            self.cover.show()
+        self.show_cover()
         self.tick()
         if self.timer is None:
             self.timer = GLib.timeout_add(250, self.tick)
@@ -152,10 +153,17 @@ class Panel(ScreenPanel):
         if self.cover:
             self.cover.set_fraction(f)
 
+    def show_cover(self):
+        if self.cover is None:
+            self.cover = Cover.load(self._screen)
+        if self.cover:
+            self.cover.show()
+
     def leave(self):
         self.timer = None
         if self.cover:
-            self.cover.hide()
+            self.cover.destroy()  # a new one is made next time (this panel may be rebuilt)
+            self.cover = None
         return False
 
     def finish(self, done):
