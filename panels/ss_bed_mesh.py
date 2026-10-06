@@ -66,7 +66,7 @@ class Panel(ScreenPanel):
         ss.set_button_text(self.profile, _("Profile"), name or _("none loaded"))
         self.profile.set_sensitive(bool(self.profiles()))
         self.calibrate.set_sensitive(not busy)
-        self.save.set_sensitive(not busy)
+        self.save.set_sensitive(not busy and bool(self.points()))  # nothing to save without a mesh
         pts = [v for row in self.points() for v in row]
         if pts:
             self.range.set_text(
