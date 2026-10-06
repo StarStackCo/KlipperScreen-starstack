@@ -64,6 +64,60 @@ def set_setting(key, value):
         logging.error(f"StarStack: cannot save {key}: {e}")
 
 
+# ---------------------------------------------------------------- boot progress (klipper-ui D-070)
+# klipper-ui's boot splash draws a progress bar under the logo until this app shows its first
+# screen (it stops when BOOT_UI_UP exists), then ss_starting carries on with the same estimate.
+# BOOT_SECONDS holds how long the last boot took to reach Home, so the bar matches this printer.
+BOOT_RUN = "/run/starstack"
+BOOT_UI_UP = BOOT_RUN + "/ui-up"
+BOOT_SECONDS = "/var/lib/starstack/boot_seconds"
+BOOT_WINDOW = 150  # uptime below this = still booting
+
+
+def uptime():
+    try:
+        with open("/proc/uptime") as f:
+            return float(f.read().split()[0])
+    except (OSError, ValueError, IndexError):
+        return 0.0
+
+
+def boot_expected():
+    try:
+        with open(BOOT_SECONDS) as f:
+            return min(180.0, max(15.0, float(f.read())))
+    except (OSError, ValueError):
+        return 35.0
+
+
+def progress(elapsed, expected):
+    """Linear to 90 % at the expected time, then creeps toward 99 % so it never looks stuck."""
+    if elapsed <= expected:
+        return 0.9 * elapsed / expected
+    return 0.9 + 0.09 * (1 - 2.718 ** (-(elapsed - expected) / 20))
+
+
+def boot_ui_up():
+    """Tell the boot splash to stop drawing (it would paint over the UI)."""
+    try:
+        open(BOOT_UI_UP, "a").close()
+    except OSError:
+        pass  # no splash installed (no /run/starstack): nothing to stop
+
+
+def boot_done():
+    """First time Home shows after power-up: remember how long the boot took."""
+    up = uptime()
+    if up > BOOT_WINDOW or os.path.exists(BOOT_RUN + "/boot-recorded"):
+        return
+    try:
+        with open(BOOT_SECONDS, "w") as f:
+            f.write(f"{up:.0f}\n")
+        open(BOOT_RUN + "/boot-recorded", "a").close()
+    except OSError:
+        pass
+
+
 def advanced(screen=None):
     return bool(get_setting("advanced", False))
 

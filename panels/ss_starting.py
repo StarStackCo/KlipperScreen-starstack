@@ -2,10 +2,14 @@
 # Replaces the stock splash while Klipper starts, restarts or reconnects (STARSTACK-CHANGE #11 in
 # screen.py printer_initializing). Shutdown/error states use ss_stopped instead.
 # Same API as the stock splash: update_text(msg).
+# Progress bar (klipper-ui D-070): after power-up it continues the boot splash's bar (same
+# estimate, from uptime); after a restart it fills over ~12 s. Never reaches 100 % by itself.
+import time
+
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk
+from gi.repository import GLib, Gtk
 
 from ks_includes import starstack as ss
 from ks_includes.screen_panel import ScreenPanel
@@ -38,14 +42,12 @@ class Panel(ScreenPanel):
         plate.get_style_context().add_class("ss-logo-plate")
         plate.add(self._gtk.Image("starstack-logo", 220, 50))
         center.add(plate)
-        status = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
-        self.spinner = Gtk.Spinner()
-        self.spinner.set_size_request(18, 18)
-        self.spinner.start()
-        status.add(self.spinner)
         self.title_lbl = ss.label(_("Starting printer…"), "ss-starting-title", xalign=0.5)
-        status.add(self.title_lbl)
-        center.add(status)
+        center.add(self.title_lbl)
+        self.bar = Gtk.ProgressBar(halign=Gtk.Align.CENTER)
+        self.bar.get_style_context().add_class("ss-boot-bar")
+        self.bar.set_size_request(200, -1)
+        center.add(self.bar)
         self.sub_lbl = ss.label(_("This usually takes 10 to 30 seconds."), "ss-muted", xalign=0.5)
         center.add(self.sub_lbl)
         page.pack_start(center, True, True, 0)
@@ -67,6 +69,30 @@ class Panel(ScreenPanel):
         self.content.add(page)
         self.content.show_all()
         self.update_text(_("Initializing printer..."))
+        self.timer = None
+        self.started = time.monotonic()
+        # First screen of this app: stop the boot splash, then repaint everything once in case
+        # its last frame landed on top of us
+        ss.boot_ui_up()
+        GLib.timeout_add(600, lambda: self._screen.queue_draw() and False)
+
+    def activate(self):
+        self.started = time.monotonic()
+        self.tick()
+        if self.timer is None:
+            self.timer = GLib.timeout_add(250, self.tick)
+
+    def tick(self):
+        if not self._screen._cur_panels or self._screen._cur_panels[-1] != "ss_starting":
+            self.timer = None
+            return False
+        up = ss.uptime()
+        if up < ss.BOOT_WINDOW:
+            p = ss.progress(up, ss.boot_expected())
+        else:
+            p = ss.progress(time.monotonic() - self.started, 12)
+        self.bar.set_fraction(p)
+        return True
 
     def update_text(self, text):
         self.title_lbl.set_text(plain(text))

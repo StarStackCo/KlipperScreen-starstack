@@ -20,6 +20,7 @@ THUMB = 56
 class Panel(ScreenPanel):
     def __init__(self, screen, title, **kwargs):
         super().__init__(screen, title)
+        ss.boot_ui_up()  # in case Home is the first screen (D-070)
         self.recent_cache = (0, [])
         self.history_jobs = []
         self.history_pending = False
@@ -683,6 +684,7 @@ class Panel(ScreenPanel):
             self.ticker = None
 
     def activate(self):
+        ss.boot_done()  # remember how long power-up took, for the boot progress bar (D-070)
         if self.ticker is None:
             self.ticker = GLib.timeout_add_seconds(4, self.tick)
         if not ss.is_printing(self._printer):
