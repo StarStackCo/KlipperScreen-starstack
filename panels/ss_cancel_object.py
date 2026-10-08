@@ -10,6 +10,7 @@ from gi.repository import Gdk, Gtk
 from ks_includes import starstack as ss
 from ks_includes.screen_panel import ScreenPanel
 
+MAP = 188  # px; with the buttons under it the left column still fits the 320 px screen
 COL = {"normal": (0.0, 0.67, 0.78), "selected": (1.0, 0.39, 0.40), "gone": (0.25, 0.25, 0.25)}
 
 
@@ -36,11 +37,20 @@ class Panel(ScreenPanel):
             )
         )
         self.map = Gtk.DrawingArea()
-        self.map.set_size_request(196, 196)
+        self.map.set_size_request(MAP, MAP)
         self.map.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.TOUCH_MASK)
         self.map.connect("draw", self.draw)
         self.map.connect("button-press-event", self.tap)
         left.add(self.map)
+        # Back / Cancel part under the map, so the part list gets the full height (user, D-095)
+        row = ss.grid(2)
+        back = ss.button(_("Back"), css="ss-btn ss-btn-outline ss-btn-mid")
+        back.connect("clicked", lambda w: ss.close_dialog(self._screen))
+        self.cancel_btn = ss.button(_("Cancel part"), css="ss-btn ss-btn-danger ss-btn-mid")
+        self.cancel_btn.connect("clicked", self.ask)
+        ss.grid_add(row, [back, self.cancel_btn])
+        row.set_hexpand(False)  # keep the left column as wide as the map
+        left.pack_end(row, False, False, 0)
         root.pack_start(left, False, False, 0)
 
         right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5, hexpand=True)
@@ -50,13 +60,6 @@ class Panel(ScreenPanel):
         # the column beside the map and pushed the page off the right edge (D-095)
         self.pager = ss.Pager(spacing=4, compact=True)
         right.pack_start(self.pager.box, True, True, 0)
-        row = ss.grid(2)
-        back = ss.button(_("Back"), css="ss-btn ss-btn-outline ss-btn-mid")
-        back.connect("clicked", lambda w: ss.close_dialog(self._screen))
-        self.cancel_btn = ss.button(_("Cancel part"), css="ss-btn ss-btn-danger ss-btn-mid")
-        self.cancel_btn.connect("clicked", self.ask)
-        ss.grid_add(row, [back, self.cancel_btn])
-        right.add(row)
         root.pack_start(right, True, True, 0)
         self.content.add(root)
         self.refresh()
