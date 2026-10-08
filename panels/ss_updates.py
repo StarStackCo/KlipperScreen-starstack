@@ -2,8 +2,12 @@
 # Replaces the stock updater panel: Moonraker's update manager in pages with ‹ › arrows.
 # Each update asks first and is locked while printing (an update restarts services).
 # The board firmware row comes from klipper-ui's update helper (D-087), which keeps the board at
-# the host's Klipper version after "Update everything".
+# the host's Klipper version after "Update everything". The same helper checks every update and
+# undoes it if the printer doesn't come back healthy; "Undo last update" asks it to go back one
+# update (klipper-ui D-092).
 import json
+
+from gi.repository import GLib
 
 from ks_includes import starstack as ss
 from ks_includes.screen_panel import ScreenPanel
@@ -20,14 +24,22 @@ NAMES = {
     "sonar": "Wi-Fi keepalive (sonar)",
 }
 BOARD = "/run/starstack/board-firmware"  # written by klipper-ui's update helper
+HEALTH = "/run/starstack/update-health"  # same helper: last update checked / undone
+UNDO_REQUEST = "/run/starstack/undo-request"  # read by the helper
+
+
+def read_json(path):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
 
 
 def board_row():
     """(note, css) for the board firmware row, or None when the helper doesn't manage the board."""
-    try:
-        with open(BOARD) as f:
-            b = json.load(f)
-    except (OSError, ValueError):
+    b = read_json(BOARD)
+    if not b:
         return None
     state = b.get("state")
     if state == "ok":
@@ -91,6 +103,7 @@ class Panel(ScreenPanel):
             board = board_row()
             if board:
                 rows.append((ss.row(_("Board firmware"), board[0], None, css_note=board[1]), "row"))
+            rows += self.health_rows(busy)
             for name in sorted(infos, key=lambda n: NAMES.get(n, n).lower()):
                 text, avail = self.note(name, infos[name])
                 rows.append(
@@ -108,6 +121,64 @@ class Panel(ScreenPanel):
         if busy:
             rows.append((ss.label(_("Updates are locked while printing."), "ss-muted"), "text"))
         self.pager.set_rows(rows)
+
+    def health_rows(self, busy):
+        h = read_json(HEALTH) or {}
+        rows = []
+        css = {
+            "checking": "ss-text-sky",
+            "undoing": "ss-text-sky",
+            "undone": "ss-text-warning",
+        }.get(h.get("state"), "ss-muted")
+        if h.get("message"):
+            rows.append((ss.label(h["message"], css, wrap=True), "text"))
+        if h.get("can_undo") and h.get("state") not in ("checking", "undoing"):
+            rows.append(
+                (
+                    ss.row(
+                        _("Undo last update"),
+                        _("back to") + f" {h.get('undo_to', '')}",
+                        self.ask_undo,
+                        sensitive=not busy,
+                    ),
+                    "row",
+                )
+            )
+        return rows
+
+    def ask_undo(self):
+        ss.confirm(
+            self._screen,
+            _("Undo the last update?"),
+            _("Klipper, the touchscreen and the other StarStack parts go back to the versions")
+            + " "
+            + _("before the last update. Services restart; it takes a few minutes.")
+            + "\n"
+            + _("Don't switch the printer off until it's finished."),
+            _("Undo update"),
+            self.undo,
+            kind="warning",
+        )
+
+    def undo(self):
+        if ss.is_printing(self._printer):
+            return
+        try:
+            with open(UNDO_REQUEST, "w") as f:
+                f.write("undo\n")
+        except OSError:
+            self._screen.show_popup_message(_("The update helper isn't installed"), 2)
+            return
+        self._screen.show_popup_message(_("Undoing the last update…"), 1)
+
+    def tick(self):
+        self.build()  # the helper's board/health status changes on its own
+        return True
+
+    def deactivate(self):
+        if getattr(self, "ticker", None):
+            GLib.source_remove(self.ticker)
+            self.ticker = None
 
     def _got_status(self, response, *args):
         if isinstance(response, dict) and "result" in response:
@@ -151,3 +222,5 @@ class Panel(ScreenPanel):
 
     def activate(self):
         self._screen._ws.send_method("machine.update.status", {}, self._got_status)
+        if not getattr(self, "ticker", None):
+            self.ticker = GLib.timeout_add_seconds(5, self.tick)
