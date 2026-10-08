@@ -55,7 +55,7 @@ After merging a new upstream base, update `tools/starstack/UPSTREAM_BASE` to the
 When merging upstream: conflicts can only happen inside `STARSTACK-CHANGE` blocks. Re-apply the block's intent on top of the new upstream code and keep the same `#n`.
 
 ## Change list
-Numbers **2–19, 48 and 49** are edits inside upstream KlipperScreen files: the code carries
+Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: the code carries
 `STARSTACK-CHANGE #n BEGIN/END` markers with the same number. Numbers **20–47** are files we added
 (each starts with a `STARSTACK-ADDED` note). `python tools/starstack/check_markers.py` verifies this.
 
@@ -81,6 +81,7 @@ Numbers **2–19, 48 and 49** are edits inside upstream KlipperScreen files: the
 | 19 | 2026-10-06 | `screen.py` `_init_printer`, `websocket_disconnected` retry checks, new `_ss_retry` | Connection retries every 1 s for the first minute (was 4 s) and up to ~6 min (was 4 tries). The touchscreen now starts before Moonraker at boot, so the first try is usually refused (klipper-ui D-077) |
 | 48 | 2026-10-08 | `screen.py` `set_titlebar_items` | The nozzle/bed temperatures in the top bar show on the StarStack pages again. Upstream (since the v0.4.7 merge, D-060) only shows them on its own `main_menu` / `job_status`, so they had disappeared; the boot cover (`ss_starting`) still hides them |
 | 49 | 2026-10-08 | `screen.py` `ws_subscribe` | Also subscribes to `gcode_macro PRINT_START` (`stage`, `target`): while the start of a print heats up the file is paused in the background (klipper-ui D-089), and Home shows "Heating bed 40/60°" instead of "Paused" |
+| 50 | 2026-10-08 | `screen.py` (imports, after the first `show_all`) | Starts the screen guard (row 51): ghost-touch filter and a full repaint every 5 s (klipper-ui D-094) |
 
 ### Files we added (never conflict)
 | # | Date | Files | What |
@@ -115,3 +116,4 @@ Numbers **2–19, 48 and 49** are edits inside upstream KlipperScreen files: the
 | 45 | 2026-10-06 | `panels/ss_move.py` | Move axes with fine steps, only homed axes move |
 | 46 | 2026-10-06 | `panels/ss_bed_mesh.py` | Bed mesh: colour map, Calibrate, Profile, Clear, Save (SAVE_CONFIG) |
 | 47 | 2026-10-06 | `panels/ss_shaper.py` | Input shaper: current shaper, Measure (needs accelerometer), Save |
+| 51 | 2026-10-08 | `ks_includes/ss_screen_guard.py` | Ghost touches on the resistive panel (single ~24 ms readings) are dropped: each press waits up to 80 ms and a press released in under 40 ms is ignored. Full window repaint every 5 s so SPI noise bands on the display disappear (klipper-ui D-094) |

@@ -47,6 +47,7 @@ from ks_includes.notification_handler import NotificationHandler
 # STARSTACK-CHANGE #8 BEGIN: StarStack UI module
 # isort: split
 from ks_includes import starstack
+from ks_includes.ss_screen_guard import ScreenGuard  # STARSTACK-CHANGE #50
 
 # isort: split
 # STARSTACK-CHANGE #8 END
@@ -181,6 +182,9 @@ class KlipperScreen(Gtk.ApplicationWindow):
         self.add(self.overlay)
         self.overlay.add_overlay(self.base_panel.main_grid)
         self.show_all()
+        # STARSTACK-CHANGE #50 BEGIN: ignore ghost touches, repaint away display noise
+        self.ss_guard = ScreenGuard(self)
+        # STARSTACK-CHANGE #50 END
         self.update_cursor(self.show_cursor)
         min_ver = (3, 8)
         if sys.version_info < min_ver:
