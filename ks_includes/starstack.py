@@ -20,7 +20,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk, Pango
 
 THEME = "starstack"
-MATERIALS = {"PLA": (210, 60), "PETG": (240, 80), "TPU": (225, 40)}
+MATERIALS = {"PLA": (210, 60), "PETG": (240, 80), "TPU": (225, 50)}
 SPEEDS = [
     ("Silent", 50, "SPEED_SILENT"),
     ("Normal", 100, "SPEED_NORMAL"),
