@@ -1,5 +1,6 @@
 # STARSTACK-ADDED: Updates page (FORK_CHANGES.md #43, klipper-ui D-067)
 # Replaces the stock updater panel: Moonraker's update manager in pages with ‹ › arrows.
+# In Settings for everyone (user, 2026-10-08): one-tap items; Advanced mode adds the per-app list.
 # Each update asks first and is locked while printing (an update restarts services).
 # The board firmware row comes from klipper-ui's update helper (D-087), which keeps the board at
 # the host's Klipper version after "Update everything". The same helper checks every update and
@@ -100,10 +101,14 @@ class Panel(ScreenPanel):
                         "row",
                     )
                 )
+            else:
+                rows.append((ss.label(_("Everything is up to date."), "ss-muted"), "text"))
             board = board_row()
             if board:
                 rows.append((ss.row(_("Board firmware"), board[0], None, css_note=board[1]), "row"))
             rows += self.health_rows(busy)
+            if not ss.advanced():  # the per-app list is for Advanced mode
+                infos = {}
             for name in sorted(infos, key=lambda n: NAMES.get(n, n).lower()):
                 text, avail = self.note(name, infos[name])
                 rows.append(
