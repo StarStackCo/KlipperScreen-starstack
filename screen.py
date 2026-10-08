@@ -459,6 +459,15 @@ class KlipperScreen(Gtk.ApplicationWindow):
 
     def set_titlebar_items(self, panel):
         logging.debug("set_titlebar_items")
+        # STARSTACK-CHANGE #48 BEGIN: the StarStack pages show the nozzle/bed temperatures too
+        # (upstream only shows them on its own main_menu / job_status); the boot cover hides them
+        if panel.startswith("ss_"):
+            if panel == "ss_starting":
+                self.base_panel.clear_titlebar_items()
+            else:
+                self.base_panel.show_titlebar_items()
+            return
+        # STARSTACK-CHANGE #48 END
         if panel in {"main_menu", "job_status"}:
             self.base_panel.show_titlebar_items()
         elif panel in {"splash_screen", "printer_select"}:
