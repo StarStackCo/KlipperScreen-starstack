@@ -95,7 +95,9 @@ class Panel(ScreenPanel):
     def start_heat(self):
         self.step = "heat"
         self.sent_move = False
-        ss.gcode(self._screen, f"{self.macro()} MATERIAL={self.mat}")  # cold → starts heating only
+        # HEAT=1: heat only. The move is sent once, when hot (unload) or when the user taps Load.
+        # Without it a nozzle that was already hot (paused print) moved twice (klipper-ui D-097).
+        ss.gcode(self._screen, f"{self.macro()} MATERIAL={self.mat} HEAT=1")
         self.render()
 
     def target(self):

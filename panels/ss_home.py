@@ -513,7 +513,10 @@ class Panel(ScreenPanel):
             return
         if self._printer.state == "paused":
             pos = self._printer.get_stat("virtual_sdcard", "file_position") or 0
-            mode = "change" if self.color_change_pause(pos) else "load"
+            # paused with filament in: unload, then load (D-097); after a runout: just load
+            runout = self.runout() and not self.color_change_pause(pos)
+            starting = ss.start_stage(self._printer) == "filament"  # PRINT_START: none loaded
+            mode = "load" if runout or starting else "change"
             ss._push(self._screen, "ss_filament", ss_mode=mode)
         else:
             objects = self._printer.get_stat("exclude_object", "objects") or []
@@ -658,14 +661,15 @@ class Panel(ScreenPanel):
         self.mid_btn.set_sensitive(
             not canceling and (not starting or stage in ("filament", "soak"))
         )
-        ss.set_button_text(
-            self.mid_btn,
-            _("Skip soak")
-            if stage == "soak"
-            else (_("Change filament") if color_pause else _("Load filament"))
-            if paused or stage == "filament"
-            else _("Cancel object"),
-        )
+        if stage == "soak":
+            mid = _("Skip soak")
+        elif stage == "filament" or (paused and self.runout() and not color_pause):
+            mid = _("Load filament")
+        elif paused:
+            mid = _("Change filament")  # any pause with filament in: unload, then load (D-097)
+        else:
+            mid = _("Cancel object")
+        ss.set_button_text(self.mid_btn, mid)
         if self.tiles:
             e_t, e_g = (
                 p.get_stat("extruder", "temperature") or 0,
