@@ -27,6 +27,7 @@ class Panel(ScreenPanel):
         self.history_stamp = 0
         self.dismissed = None
         self.resume_at = None  # target °C while reheating before resume
+        self.btn_busy = None  # ("pausing" | "resuming", time tapped): button locked until done
         self.speed_pending = None  # tapped speed preset not yet applied by Klipper
         self.cc = {"changes": [], "m73": []}  # color changes in the current file
         self.phase = False  # alternates "color change in" / "time left"
@@ -387,9 +388,13 @@ class Panel(ScreenPanel):
 
     def toggle_pause(self, widget):
         p = self._printer
+        if self.busy_text():  # a double tap must not undo the pause (or resume) just asked for
+            return
         if p.state != "paused":
             self.resume_at = None
+            self.btn_busy = ("pausing", time.monotonic())
             self._screen._ws.api.print_pause()
+            self.update_view()
             return
         if self.resume_at:  # tapped again while reheating: stop waiting
             self.resume_at = None
@@ -406,7 +411,7 @@ class Panel(ScreenPanel):
                 ss.gcode(self._screen, f"M104 S{temp:.0f}")
                 self.update_view()
             else:
-                self._screen._ws.api.print_resume()
+                self.resume()
 
         ss.query_objects(self._screen, {"gcode_macro RESUME": ["last_extruder_temp"]}, got)
 
@@ -418,7 +423,32 @@ class Panel(ScreenPanel):
             self.resume_at = None
         elif (p.get_stat("extruder", "temperature") or 0) >= self.resume_at - 3:
             self.resume_at = None
-            self._screen._ws.api.print_resume()
+            self.resume()
+
+    def resume(self):
+        self.btn_busy = ("resuming", time.monotonic())
+        self._screen._ws.api.print_resume()
+        self.update_view()
+
+    def busy_text(self):
+        """Button text: "Pausing…" until the print is paused and the head has parked (Klipper
+        idle again), "Resuming…" until it prints again; None when the button is free."""
+        if not self.btn_busy:
+            return None
+        p = self._printer
+        kind, since = self.btn_busy
+        waited = time.monotonic() - since
+        moving = p.get_stat("idle_timeout", "state") == "Printing"
+        if kind == "pausing":
+            done = (p.state == "paused" and not moving and waited > 1) or (
+                p.state == "printing" and waited > 30  # the pause didn't happen
+            )
+        else:
+            done = waited > 2 and (p.state == "printing" or not moving)  # not moving: refused
+        if done or p.state not in ("printing", "paused") or waited > 120:
+            self.btn_busy = None
+            return None
+        return _("Pausing…") if kind == "pausing" else _("Resuming…")
 
     # ---- color changes (M600) in the current file
     def start_color_scan(self, fn):
@@ -610,11 +640,12 @@ class Panel(ScreenPanel):
         for pct, b in self.speed_btns.items():
             ss.set_class(b, "ss-chip-active", pct == shown)
         resume_txt = _("Reheating…") if self.resume_at else _("Resume")
+        busy = self.busy_text()
         ss.set_button_text(
             self.pause_btn,
-            _("Getting ready") if starting else resume_txt if paused else _("Pause"),
+            _("Getting ready") if starting else busy or (resume_txt if paused else _("Pause")),
         )
-        self.pause_btn.set_sensitive(not (starting or canceling))
+        self.pause_btn.set_sensitive(not (starting or canceling or busy))
         self.mid_btn.set_sensitive(not canceling and (not starting or stage == "filament"))
         ss.set_button_text(
             self.mid_btn,

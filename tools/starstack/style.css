@@ -313,6 +313,7 @@ button.ss-btn-sm { min-height: 32px; }
 button.ss-btn-sm .ss-btn-text { font-size: 12px; font-weight: 600; }
 button.ss-btn-pager { min-height: 40px; min-width: 64px; }
 button.ss-btn-pager .ss-btn-text { font-size: 18px; }
+button.ss-btn-pager-sm { min-width: 44px; } /* compact pager beside the bed map (cancel object) */
 button.ss-btn-sort { min-height: 36px; padding: 0 10px; }
 button.ss-btn-sort .ss-btn-text { font-size: 12px; font-weight: 700; }
 button.ss-hot .ss-btn-sub { color: @warning; }

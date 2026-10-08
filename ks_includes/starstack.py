@@ -398,8 +398,9 @@ class Pager:
     rows: list of (widget, kind) with kind in ROW_HEIGHTS. The page size follows the space
     the list actually gets on screen, so nothing is cut off."""
 
-    def __init__(self, spacing=6):
+    def __init__(self, spacing=6, compact=False):
         self.spacing = spacing
+        self.compact = compact  # narrow column: small arrows and "1 / 2" instead of "Page 1 / 2"
         self.rows = []
         self.page = 0
         self.height = 0
@@ -411,10 +412,11 @@ class Pager:
         self.area.pack_start(self.list, False, False, 0)
         self.box.pack_start(self.area, True, True, 0)
         self.foot = Gtk.Box(spacing=8)
-        self.prev = button("‹", css="ss-btn ss-btn-outline ss-btn-pager")
+        css = "ss-btn ss-btn-outline ss-btn-pager" + (" ss-btn-pager-sm" if compact else "")
+        self.prev = button("‹", css=css)
         self.prev.set_hexpand(False)
         self.prev.connect("clicked", self.turn, -1)
-        self.next = button("›", css="ss-btn ss-btn-outline ss-btn-pager")
+        self.next = button("›", css=css)
         self.next.set_hexpand(False)
         self.next.connect("clicked", self.turn, 1)
         self.note = label("", "ss-muted", xalign=0.5)
@@ -481,7 +483,8 @@ class Pager:
             for c in self.foot.get_children():  # show_all() skips no_show_all widgets
                 c.show_all()
         self.foot.set_visible(many)
-        self.note.set_text(_("Page") + f" {self.page + 1} / {len(pages)}")
+        count = f"{self.page + 1} / {len(pages)}"
+        self.note.set_text(count if self.compact else _("Page") + f" {count}")
         self.prev.set_sensitive(self.page > 0)
         self.next.set_sensitive(self.page < len(pages) - 1)
         self.list.show_all()

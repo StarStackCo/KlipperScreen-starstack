@@ -46,7 +46,9 @@ class Panel(ScreenPanel):
         right = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5, hexpand=True)
         right.add(ss.label(_("Cancel an object"), "ss-page-title"))
         right.add(ss.label(_("Tap a part. The rest keep printing."), "ss-btn-sub", wrap=True))
-        self.pager = ss.Pager(spacing=4)  # pages with ‹ › arrows, no scrolling (D-064)
+        # pages with ‹ › arrows, no scrolling (D-064); compact: the full arrow bar is wider than
+        # the column beside the map and pushed the page off the right edge (D-095)
+        self.pager = ss.Pager(spacing=4, compact=True)
         right.pack_start(self.pager.box, True, True, 0)
         row = ss.grid(2)
         back = ss.button(_("Back"), css="ss-btn ss-btn-outline ss-btn-mid")
