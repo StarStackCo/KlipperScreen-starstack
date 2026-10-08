@@ -55,8 +55,8 @@ After merging a new upstream base, update `tools/starstack/UPSTREAM_BASE` to the
 When merging upstream: conflicts can only happen inside `STARSTACK-CHANGE` blocks. Re-apply the block's intent on top of the new upstream code and keep the same `#n`.
 
 ## Change list
-Numbers **2–16** are edits inside upstream KlipperScreen files: the code carries
-`STARSTACK-CHANGE #n BEGIN/END` markers with the same number. Numbers **20+** are files we added
+Numbers **2–19 and 48** are edits inside upstream KlipperScreen files: the code carries
+`STARSTACK-CHANGE #n BEGIN/END` markers with the same number. Numbers **20–47** are files we added
 (each starts with a `STARSTACK-ADDED` note). `python tools/starstack/check_markers.py` verifies this.
 
 ### Edits inside upstream files (merge conflicts can only happen here)
@@ -79,6 +79,7 @@ Numbers **2–16** are edits inside upstream KlipperScreen files: the code carri
 | 17 | 2026-10-06 | `screen.py` `show_popup_message` | Pop-up warnings only as wide as the area right of the StarStack rail (was 90 % of the screen, covering the rail buttons) |
 | 18 | 2026-10-06 | `screen.py` (before `import gi`) | `GDK_GL=disable`: GDK no longer sets up OpenGL, which loaded Mesa's software renderer (~160 MB with LLVM) at every start and cost ~8 s of SD-card reads during boot. Nothing in KlipperScreen draws with GL (klipper-ui D-076) |
 | 19 | 2026-10-06 | `screen.py` `_init_printer`, `websocket_disconnected` retry checks, new `_ss_retry` | Connection retries every 1 s for the first minute (was 4 s) and up to ~6 min (was 4 tries). The touchscreen now starts before Moonraker at boot, so the first try is usually refused (klipper-ui D-077) |
+| 48 | 2026-10-08 | `screen.py` `set_titlebar_items` | The nozzle/bed temperatures in the top bar show on the StarStack pages again. Upstream (since the v0.4.7 merge, D-060) only shows them on its own `main_menu` / `job_status`, so they had disappeared; the boot cover (`ss_starting`) still hides them |
 
 ### Files we added (never conflict)
 | # | Date | Files | What |
