@@ -79,7 +79,6 @@ class Panel(ScreenPanel):
                     lambda: self.open("ss_extrude", _("Extrude")),
                 ),
                 (_("Console"), _("type G-code"), lambda: self.open("ss_console", _("Console"))),
-                (_("Updates"), "", lambda: self.open("ss_updates", _("Updates"))),
                 (_("Move axes"), _("fine steps"), lambda: self.open("ss_move", _("Move"))),
                 (_("Fans"), "", lambda: self.open("ss_fans", _("Fans"))),
                 (_("Bed mesh"), "", lambda: self.open("ss_bed_mesh", _("Bed mesh"))),
@@ -98,6 +97,9 @@ class Panel(ScreenPanel):
                 lambda: self.open("ss_screen", _("Screen")),
                 True,
             ),
+            # always here (user, 2026-10-08): one-tap updates for everyone; Advanced adds the
+            # per-app list on the Updates page
+            (_("Updates"), "", lambda: self.open("ss_updates", _("Updates")), True),
             (_("About this printer"), "", lambda: self.open("ss_about", _("About")), True),
             (
                 _("Shut down / reboot") + lock,

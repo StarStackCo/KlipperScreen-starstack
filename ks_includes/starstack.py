@@ -678,7 +678,71 @@ def adjust(screen, **kwargs):
     _push(screen, "ss_adjust", **kwargs)
 
 
+def file_material(screen, filename):
+    """PLA / PETG / TPU from the file's slicer metadata (e.g. "PETG;PETG" → "PETG"), else None."""
+    meta = screen.files.get_file_info(filename) or {}
+    kind = (meta.get("filament_type") or "").split(";")[0].strip().upper()
+    return next((m for m in MATERIALS if kind.startswith(m)), None)
+
+
 def bed_clear_then_print(screen, filename):
+    """Every Print button: filament check (klipper-ui D-090), then "Is the bed clear?"."""
+    query_loaded_material(screen, lambda loaded: _check_filament(screen, filename, loaded))
+
+
+def _set_loaded(screen, material):
+    gcode(screen, f"SAVE_VARIABLE VARIABLE=loaded_material VALUE='\"{material}\"'")
+
+
+def _check_filament(screen, filename, loaded):
+    want = file_material(screen, filename)
+    again = lambda: bed_clear_then_print(screen, filename)  # noqa: E731  re-check after loading
+    if not loaded:
+
+        def picked(material):
+            _set_loaded(screen, material)
+            _check_filament(screen, filename, material)
+
+        confirm(
+            screen,
+            _("No filament loaded"),
+            _("Load filament before printing, or tell the printer which one is already in.")
+            + (f"\n{pretty_name(filename)}: {want}" if want else ""),
+            _("Load filament"),
+            lambda: _push(screen, "ss_filament", ss_mode="load", ss_then=again),
+            no_label=_("Go back"),
+            alt_label=_("It's loaded"),
+            on_alt=lambda: choose(
+                screen,
+                _("Which filament is loaded?"),
+                [(m, m) for m in MATERIALS],
+                want,
+                picked,
+            ),
+        )
+    elif want and want != loaded:
+        confirm(
+            screen,
+            _("Different filament loaded"),
+            _("This file is for") + f" {want}, " + _("but") + f" {loaded} " + _("is loaded."),
+            _("Print anyway"),
+            lambda: _bed_clear(screen, filename),
+            kind="warning",
+            no_label=_("Go back"),
+            alt_label=_("Change filament"),
+            on_alt=lambda: _push(
+                screen,
+                "ss_filament",
+                ss_mode="unload",
+                ss_material=loaded,
+                ss_then=lambda: _push(screen, "ss_filament", ss_mode="load", ss_then=again),
+            ),
+        )
+    else:
+        _bed_clear(screen, filename)
+
+
+def _bed_clear(screen, filename):
     confirm(
         screen,
         _("Is the bed clear?"),

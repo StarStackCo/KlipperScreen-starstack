@@ -515,6 +515,8 @@ class Panel(ScreenPanel):
         target = p.get_stat("gcode_macro PRINT_START", "target") or 0
         e_t = p.get_stat("extruder", "temperature") or 0
         b_t = p.get_stat("heater_bed", "temperature") or 0
+        if stage == "filament":
+            return _("No filament loaded: load it, or pick which one is in")
         if stage == "bed":
             return _("Heating bed") + f" {b_t:.0f} / {target:.0f}°"
         if stage in ("nozzle", "final"):
@@ -613,11 +615,11 @@ class Panel(ScreenPanel):
             _("Getting ready") if starting else resume_txt if paused else _("Pause"),
         )
         self.pause_btn.set_sensitive(not (starting or canceling))
-        self.mid_btn.set_sensitive(not (starting or canceling))
+        self.mid_btn.set_sensitive(not canceling and (not starting or stage == "filament"))
         ss.set_button_text(
             self.mid_btn,
             (_("Change filament") if color_pause else _("Load filament"))
-            if paused
+            if paused or stage == "filament"
             else _("Cancel object"),
         )
         if self.tiles:
