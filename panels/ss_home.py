@@ -508,6 +508,9 @@ class Panel(ScreenPanel):
         return False
 
     def middle_action(self, widget):
+        if ss.start_stage(self._printer) == "soak":
+            ss.gcode(self._screen, "SKIP_SOAK")
+            return
         if self._printer.state == "paused":
             pos = self._printer.get_stat("virtual_sdcard", "file_position") or 0
             mode = "change" if self.color_change_pause(pos) else "load"
@@ -555,11 +558,17 @@ class Panel(ScreenPanel):
             return _("Cooling nozzle for the bed check") + f" {e_t:.0f} / {target:.0f}°"
         if stage == "prep":
             return _("Homing and cleaning the nozzle")
+        if stage == "soak":  # target: seconds left (klipper-ui D-096)
+            left = int(target)
+            return _("Heat soaking the bed") + f" · {left // 60}:{left % 60:02d} " + _("left")
         return _("Measuring the bed")
 
     def start_fraction(self, stage):
         p = self._printer
         target = p.get_stat("gcode_macro PRINT_START", "target") or 0
+        if stage == "soak":
+            total = p.get_stat("gcode_macro PRINT_START", "soak") or 0
+            return max(0.0, min(1.0, 1 - target / total)) if total > 0 else 0.0
         dev = {"bed": "heater_bed", "nozzle": "extruder", "final": "extruder"}.get(stage)
         if not dev or target <= 0:
             return 0.0
@@ -646,10 +655,14 @@ class Panel(ScreenPanel):
             _("Getting ready") if starting else busy or (resume_txt if paused else _("Pause")),
         )
         self.pause_btn.set_sensitive(not (starting or canceling or busy))
-        self.mid_btn.set_sensitive(not canceling and (not starting or stage == "filament"))
+        self.mid_btn.set_sensitive(
+            not canceling and (not starting or stage in ("filament", "soak"))
+        )
         ss.set_button_text(
             self.mid_btn,
-            (_("Change filament") if color_pause else _("Load filament"))
+            _("Skip soak")
+            if stage == "soak"
+            else (_("Change filament") if color_pause else _("Load filament"))
             if paused or stage == "filament"
             else _("Cancel object"),
         )

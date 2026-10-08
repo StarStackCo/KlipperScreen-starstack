@@ -386,7 +386,7 @@ class KlipperScreen(Gtk.ApplicationWindow):
                 "screws_tilt_adjust": ["results", "error", "max_deviation"],
                 # STARSTACK-CHANGE #49 BEGIN: PRINT_START's step, so Home shows "Heating bed 40/60°"
                 # instead of "Paused" while the start of a print heats up (klipper-ui D-089)
-                "gcode_macro PRINT_START": ["stage", "target"],
+                "gcode_macro PRINT_START": ["stage", "target", "soak"],  # soak: D-096
                 # STARSTACK-CHANGE #49 END
             }
         }
