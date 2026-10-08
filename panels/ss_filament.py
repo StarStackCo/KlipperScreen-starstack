@@ -13,8 +13,9 @@ from ks_includes.screen_panel import ScreenPanel
 
 
 class Panel(ScreenPanel):
-    def __init__(self, screen, title, ss_mode="load", ss_material=None, **kwargs):
+    def __init__(self, screen, title, ss_mode="load", ss_material=None, ss_then=None, **kwargs):
         super().__init__(screen, title)
+        self.then = ss_then  # after Done (not Cancel): e.g. back to Print (D-090)
         self.change = ss_mode == "change"  # color change: unload, then load the same material
         if self.change:
             ss_mode = "unload"
@@ -112,6 +113,8 @@ class Panel(ScreenPanel):
         elif self.step in ("purge", "unloaded"):
             ss.gcode(self._screen, "FILAMENT_DONE")
             ss.close_dialog(self._screen)
+            if self.then:
+                self.then()
             return
         self.render()
 
