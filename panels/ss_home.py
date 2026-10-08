@@ -589,16 +589,16 @@ class Panel(ScreenPanel):
         if info.get("total_layer"):
             parts.append(_("Layer") + f" {info.get('current_layer') or 0} / {info['total_layer']}")
         # Alternate every 4 s between "Color change in X" and "X left" (files with color changes)
-        eta = None if paused else self.color_change_eta(fn, pos, dur)
+        eta = None if paused or starting else self.color_change_eta(fn, pos, dur)
         if eta is not None and self.phase:
             soon = _("under 1 min") if eta < 60 else ss.fmt_duration(eta)
             parts.append(_("Color change in") + " " + soon)
-        elif progress > 0.02 and dur > 0:
+        elif progress > 0.02 and dur > 0 and not starting:
             parts.append(ss.fmt_duration(dur / progress - dur) + " " + _("left"))
         self.job_line.set_text(" · ".join(parts))
         ss.set_class(self.job_line, "ss-text-sky", eta is not None and self.phase and not paused)
         self.progress.set_fraction(self.start_fraction(stage) if starting else min(1.0, progress))
-        self.job_pct.set_text(f"{int(progress * 100)}%")
+        self.job_pct.set_text("" if starting else f"{int(progress * 100)}%")
         ss.set_class(self.job_pct, "ss-text-warning", paused)
         ss.set_class(self.progress, "ss-progress-paused", paused)
         sf = round((p.get_stat("gcode_move", "speed_factor") or 1) * 100)
