@@ -380,6 +380,10 @@ class KlipperScreen(Gtk.ApplicationWindow):
                 "exclude_object": ["current_object", "objects", "excluded_objects"],
                 "manual_probe": ["is_active"],
                 "screws_tilt_adjust": ["results", "error", "max_deviation"],
+                # STARSTACK-CHANGE #49 BEGIN: PRINT_START's step, so Home shows "Heating bed 40/60°"
+                # instead of "Paused" while the start of a print heats up (klipper-ui D-089)
+                "gcode_macro PRINT_START": ["stage", "target"],
+                # STARSTACK-CHANGE #49 END
             }
         }
         for extruder in self.printer.get_tools():

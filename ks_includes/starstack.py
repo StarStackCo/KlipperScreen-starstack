@@ -707,6 +707,67 @@ def ask_estop(screen):
     )
 
 
+# ---------------------------------------------------------------- start of print / cancel (D-089)
+# PRINT_START (klipper-ui macros) heats with the file paused, so cancel works at once. Files sliced
+# with the old start G-code still wait in M190/M109, and Klipper runs nothing else (not even the
+# cancel) until the heater is at temperature. Backstop: if a cancel hasn't started 3 s after the tap
+# and a heater is still on and away from its target (= a heat wait), emergency stop, then restart.
+# A normal cancel turns the heaters off as its first step, so this never fires once it is running.
+CANCEL_BACKSTOP_S = 3
+_cancel = {"since": None}
+
+
+def start_stage(printer):
+    """PRINT_START's current step ('' when not starting): bed, nozzle, prep, cool, mesh, final."""
+    if printer is None:
+        return ""
+    return printer.get_stat("gcode_macro PRINT_START", "stage") or ""
+
+
+def canceling():
+    return _cancel["since"] is not None
+
+
+def heat_wait_blocking(printer):
+    """True if Klipper is most likely stuck in an M190/M109 wait of an old-style file."""
+    if printer.state != "printing" or start_stage(printer):
+        return False
+    for dev in ["heater_bed"] + list(printer.get_tools()):
+        target = printer.get_stat(dev, "target") or 0
+        temp = printer.get_stat(dev, "temperature") or 0
+        if target > 0 and abs(temp - target) > 2:
+            return True
+    return False
+
+
+def cancel_print(screen):
+    started = time.monotonic()
+    _cancel["since"] = started
+    screen._ws.api.print_cancel()
+
+    def restart():
+        screen._ws.api.restart_firmware()
+        return False
+
+    def check():
+        if _cancel["since"] != started:
+            return False
+        p = screen.printer
+        waited = time.monotonic() - started
+        if p is None or p.state not in ("printing", "paused") or waited > 120:
+            _cancel["since"] = None
+            return False
+        if waited >= CANCEL_BACKSTOP_S and heat_wait_blocking(p):
+            logging.warning("StarStack: cancel stuck behind a heater wait: e-stop + restart")
+            _cancel["since"] = None
+            screen._ws.api.emergency_stop()
+            GLib.timeout_add_seconds(2, restart)
+            return False
+        return True
+
+    GLib.timeout_add(500, check)
+
+
 # ---------------------------------------------------------------- the rail
 class StarStackRail:
     """Replaces the stock action bar: 4 page buttons + STOP (always present, D-036)."""

@@ -1,6 +1,10 @@
 # STARSTACK-ADDED: Updates page (FORK_CHANGES.md #43, klipper-ui D-067)
 # Replaces the stock updater panel: Moonraker's update manager in pages with ‹ › arrows.
 # Each update asks first and is locked while printing (an update restarts services).
+# The board firmware row comes from klipper-ui's update helper (D-087), which keeps the board at
+# the host's Klipper version after "Update everything".
+import json
+
 from ks_includes import starstack as ss
 from ks_includes.screen_panel import ScreenPanel
 
@@ -12,7 +16,27 @@ NAMES = {
     "klipper-ui": "StarStack macros + theme",
     "system": "System packages",
     "crowsnest": "Camera (crowsnest)",
+    "mainsail-config": "Mainsail macros",
+    "sonar": "Wi-Fi keepalive (sonar)",
 }
+BOARD = "/run/starstack/board-firmware"  # written by klipper-ui's update helper
+
+
+def board_row():
+    """(note, css) for the board firmware row, or None when the helper doesn't manage the board."""
+    try:
+        with open(BOARD) as f:
+            b = json.load(f)
+    except (OSError, ValueError):
+        return None
+    state = b.get("state")
+    if state == "ok":
+        return _("matches Klipper") + f" · {b.get('mcu', '')}", "ss-muted"
+    if state == "updating":
+        return _("updating…"), "ss-text-sky"
+    if state == "failed":
+        return _("update failed: see Mainsail"), "ss-text-error"
+    return None
 
 
 class Panel(ScreenPanel):
@@ -64,6 +88,9 @@ class Panel(ScreenPanel):
                         "row",
                     )
                 )
+            board = board_row()
+            if board:
+                rows.append((ss.row(_("Board firmware"), board[0], None, css_note=board[1]), "row"))
             for name in sorted(infos, key=lambda n: NAMES.get(n, n).lower()):
                 text, avail = self.note(name, infos[name])
                 rows.append(

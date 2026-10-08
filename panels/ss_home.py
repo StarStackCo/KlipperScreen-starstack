@@ -500,10 +500,38 @@ class Panel(ScreenPanel):
             _("Cancel this print?"),
             f"{name} " + _("will stop and can't be resumed."),
             _("Cancel print"),
-            self._screen._ws.api.print_cancel,
+            self.cancel,
             kind="danger",
             no_label=_("Keep printing"),
         )
+
+    def cancel(self):
+        ss.cancel_print(self._screen)  # with the stuck-heater backstop (D-089)
+        self.update_view()
+
+    def start_text(self, stage):
+        """What PRINT_START is doing while the file waits (D-089)."""
+        p = self._printer
+        target = p.get_stat("gcode_macro PRINT_START", "target") or 0
+        e_t = p.get_stat("extruder", "temperature") or 0
+        b_t = p.get_stat("heater_bed", "temperature") or 0
+        if stage == "bed":
+            return _("Heating bed") + f" {b_t:.0f} / {target:.0f}°"
+        if stage in ("nozzle", "final"):
+            return _("Heating nozzle") + f" {e_t:.0f} / {target:.0f}°"
+        if stage == "cool":
+            return _("Cooling nozzle for the bed check") + f" {e_t:.0f} / {target:.0f}°"
+        if stage == "prep":
+            return _("Homing and cleaning the nozzle")
+        return _("Measuring the bed")
+
+    def start_fraction(self, stage):
+        p = self._printer
+        target = p.get_stat("gcode_macro PRINT_START", "target") or 0
+        dev = {"bed": "heater_bed", "nozzle": "extruder", "final": "extruder"}.get(stage)
+        if not dev or target <= 0:
+            return 0.0
+        return max(0.0, min(1.0, (p.get_stat(dev, "temperature") or 0) / target))
 
     def file_progress(self, fn):
         """Progress through the G-code body (like Mainsail): ignores the thumbnail/header bytes."""
@@ -530,7 +558,10 @@ class Panel(ScreenPanel):
             self.start_color_scan(fn)
         self.build_tiles()
         self.check_resume()
-        paused = p.state == "paused"
+        stage = ss.start_stage(p)
+        starting = p.state == "paused" and bool(stage)  # PRINT_START heating: not a real pause
+        paused = p.state == "paused" and not starting
+        canceling = ss.canceling()
         pos = p.get_stat("virtual_sdcard", "file_position") or 0
         progress = self.file_progress(fn)
         dur = (
@@ -541,7 +572,11 @@ class Panel(ScreenPanel):
         info = p.get_stat("print_stats", "info") or {}
         color_pause = paused and self.color_change_pause(pos)
         parts = []
-        if self.resume_at:
+        if canceling:
+            parts.append(_("Canceling…"))
+        elif starting:
+            parts.append(self.start_text(stage))
+        elif self.resume_at:
             parts.append(_("Reheating to") + f" {self.resume_at:.0f}°, " + _("then resuming"))
         elif paused:
             parts.append(
@@ -554,16 +589,16 @@ class Panel(ScreenPanel):
         if info.get("total_layer"):
             parts.append(_("Layer") + f" {info.get('current_layer') or 0} / {info['total_layer']}")
         # Alternate every 4 s between "Color change in X" and "X left" (files with color changes)
-        eta = None if paused else self.color_change_eta(fn, pos, dur)
+        eta = None if paused or starting else self.color_change_eta(fn, pos, dur)
         if eta is not None and self.phase:
             soon = _("under 1 min") if eta < 60 else ss.fmt_duration(eta)
             parts.append(_("Color change in") + " " + soon)
-        elif progress > 0.02 and dur > 0:
+        elif progress > 0.02 and dur > 0 and not starting:
             parts.append(ss.fmt_duration(dur / progress - dur) + " " + _("left"))
         self.job_line.set_text(" · ".join(parts))
         ss.set_class(self.job_line, "ss-text-sky", eta is not None and self.phase and not paused)
-        self.progress.set_fraction(min(1.0, progress))
-        self.job_pct.set_text(f"{int(progress * 100)}%")
+        self.progress.set_fraction(self.start_fraction(stage) if starting else min(1.0, progress))
+        self.job_pct.set_text("" if starting else f"{int(progress * 100)}%")
         ss.set_class(self.job_pct, "ss-text-warning", paused)
         ss.set_class(self.progress, "ss-progress-paused", paused)
         sf = round((p.get_stat("gcode_move", "speed_factor") or 1) * 100)
@@ -573,7 +608,12 @@ class Panel(ScreenPanel):
         for pct, b in self.speed_btns.items():
             ss.set_class(b, "ss-chip-active", pct == shown)
         resume_txt = _("Reheating…") if self.resume_at else _("Resume")
-        ss.set_button_text(self.pause_btn, resume_txt if paused else _("Pause"))
+        ss.set_button_text(
+            self.pause_btn,
+            _("Getting ready") if starting else resume_txt if paused else _("Pause"),
+        )
+        self.pause_btn.set_sensitive(not (starting or canceling))
+        self.mid_btn.set_sensitive(not (starting or canceling))
         ss.set_button_text(
             self.mid_btn,
             (_("Change filament") if color_pause else _("Load filament"))
