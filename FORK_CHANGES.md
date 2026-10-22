@@ -56,7 +56,7 @@ When merging upstream: conflicts can only happen inside `STARSTACK-CHANGE` block
 
 ## Change list
 Numbers **2–19, 48 and 49** are edits inside upstream KlipperScreen files: the code carries
-`STARSTACK-CHANGE #n BEGIN/END` markers with the same number. Numbers **20–47** are files we added
+`STARSTACK-CHANGE #n BEGIN/END` markers with the same number. Numbers **20–47 and 51–53** are files we added
 (each starts with a `STARSTACK-ADDED` note). `python tools/starstack/check_markers.py` verifies this.
 
 ### Edits inside upstream files (merge conflicts can only happen here)
@@ -115,3 +115,5 @@ Numbers **2–19, 48 and 49** are edits inside upstream KlipperScreen files: the
 | 45 | 2026-10-06 | `panels/ss_move.py` | Move axes with fine steps, only homed axes move |
 | 46 | 2026-10-06 | `panels/ss_bed_mesh.py` | Bed mesh: colour map, Calibrate, Profile, Clear, Save (SAVE_CONFIG) |
 | 47 | 2026-10-06 | `panels/ss_shaper.py` | Input shaper: current shaper, Measure (needs accelerometer), Save |
+| 52 | 2026-10-22 | `CLAUDE.md` | Instructions for Claude Code sessions: what the fork is, where the source of truth lives (klipper-ui docs), branch and marker rules, hazards (klipper-ui D-102) |
+| 53 | 2026-10-22 | `.claude/skills/fork-workflow/` | Claude Code skill: how to change, check, install and ship the fork, with gotchas from the decision log; `layout-checks.md`, `upstream-merge.md` (klipper-ui D-102) |
