@@ -27,6 +27,7 @@ class Panel(ScreenPanel):
         self.history_stamp = 0
         self.dismissed = None
         self.resume_at = None  # target °C while reheating before resume
+        self.btn_busy = None  # ("pausing" | "resuming", time tapped): button locked until done
         self.speed_pending = None  # tapped speed preset not yet applied by Klipper
         self.cc = {"changes": [], "m73": []}  # color changes in the current file
         self.phase = False  # alternates "color change in" / "time left"
@@ -387,9 +388,13 @@ class Panel(ScreenPanel):
 
     def toggle_pause(self, widget):
         p = self._printer
+        if self.busy_text():  # a double tap must not undo the pause (or resume) just asked for
+            return
         if p.state != "paused":
             self.resume_at = None
+            self.btn_busy = ("pausing", time.monotonic())
             self._screen._ws.api.print_pause()
+            self.update_view()
             return
         if self.resume_at:  # tapped again while reheating: stop waiting
             self.resume_at = None
@@ -406,7 +411,7 @@ class Panel(ScreenPanel):
                 ss.gcode(self._screen, f"M104 S{temp:.0f}")
                 self.update_view()
             else:
-                self._screen._ws.api.print_resume()
+                self.resume()
 
         ss.query_objects(self._screen, {"gcode_macro RESUME": ["last_extruder_temp"]}, got)
 
@@ -418,7 +423,32 @@ class Panel(ScreenPanel):
             self.resume_at = None
         elif (p.get_stat("extruder", "temperature") or 0) >= self.resume_at - 3:
             self.resume_at = None
-            self._screen._ws.api.print_resume()
+            self.resume()
+
+    def resume(self):
+        self.btn_busy = ("resuming", time.monotonic())
+        self._screen._ws.api.print_resume()
+        self.update_view()
+
+    def busy_text(self):
+        """Button text: "Pausing…" until the print is paused and the head has parked (Klipper
+        idle again), "Resuming…" until it prints again; None when the button is free."""
+        if not self.btn_busy:
+            return None
+        p = self._printer
+        kind, since = self.btn_busy
+        waited = time.monotonic() - since
+        moving = p.get_stat("idle_timeout", "state") == "Printing"
+        if kind == "pausing":
+            done = (p.state == "paused" and not moving and waited > 1) or (
+                p.state == "printing" and waited > 30  # the pause didn't happen
+            )
+        else:
+            done = waited > 2 and (p.state == "printing" or not moving)  # not moving: refused
+        if done or p.state not in ("printing", "paused") or waited > 120:
+            self.btn_busy = None
+            return None
+        return _("Pausing…") if kind == "pausing" else _("Resuming…")
 
     # ---- color changes (M600) in the current file
     def start_color_scan(self, fn):
@@ -478,9 +508,15 @@ class Panel(ScreenPanel):
         return False
 
     def middle_action(self, widget):
+        if ss.start_stage(self._printer) == "soak":
+            ss.gcode(self._screen, "SKIP_SOAK")
+            return
         if self._printer.state == "paused":
             pos = self._printer.get_stat("virtual_sdcard", "file_position") or 0
-            mode = "change" if self.color_change_pause(pos) else "load"
+            # paused with filament in: unload, then load (D-097); after a runout: just load
+            runout = self.runout() and not self.color_change_pause(pos)
+            starting = ss.start_stage(self._printer) == "filament"  # PRINT_START: none loaded
+            mode = "load" if runout or starting else "change"
             ss._push(self._screen, "ss_filament", ss_mode=mode)
         else:
             objects = self._printer.get_stat("exclude_object", "objects") or []
@@ -525,11 +561,17 @@ class Panel(ScreenPanel):
             return _("Cooling nozzle for the bed check") + f" {e_t:.0f} / {target:.0f}°"
         if stage == "prep":
             return _("Homing and cleaning the nozzle")
+        if stage == "soak":  # target: seconds left (klipper-ui D-096)
+            left = int(target)
+            return _("Heat soaking the bed") + f" · {left // 60}:{left % 60:02d} " + _("left")
         return _("Measuring the bed")
 
     def start_fraction(self, stage):
         p = self._printer
         target = p.get_stat("gcode_macro PRINT_START", "target") or 0
+        if stage == "soak":
+            total = p.get_stat("gcode_macro PRINT_START", "soak") or 0
+            return max(0.0, min(1.0, 1 - target / total)) if total > 0 else 0.0
         dev = {"bed": "heater_bed", "nozzle": "extruder", "final": "extruder"}.get(stage)
         if not dev or target <= 0:
             return 0.0
@@ -610,18 +652,24 @@ class Panel(ScreenPanel):
         for pct, b in self.speed_btns.items():
             ss.set_class(b, "ss-chip-active", pct == shown)
         resume_txt = _("Reheating…") if self.resume_at else _("Resume")
+        busy = self.busy_text()
         ss.set_button_text(
             self.pause_btn,
-            _("Getting ready") if starting else resume_txt if paused else _("Pause"),
+            _("Getting ready") if starting else busy or (resume_txt if paused else _("Pause")),
         )
-        self.pause_btn.set_sensitive(not (starting or canceling))
-        self.mid_btn.set_sensitive(not canceling and (not starting or stage == "filament"))
-        ss.set_button_text(
-            self.mid_btn,
-            (_("Change filament") if color_pause else _("Load filament"))
-            if paused or stage == "filament"
-            else _("Cancel object"),
+        self.pause_btn.set_sensitive(not (starting or canceling or busy))
+        self.mid_btn.set_sensitive(
+            not canceling and (not starting or stage in ("filament", "soak"))
         )
+        if stage == "soak":
+            mid = _("Skip soak")
+        elif stage == "filament" or (paused and self.runout() and not color_pause):
+            mid = _("Load filament")
+        elif paused:
+            mid = _("Change filament")  # any pause with filament in: unload, then load (D-097)
+        else:
+            mid = _("Cancel object")
+        ss.set_button_text(self.mid_btn, mid)
         if self.tiles:
             e_t, e_g = (
                 p.get_stat("extruder", "temperature") or 0,
