@@ -22,7 +22,7 @@ Design/plan docs live in the separate repo `StarStackCo/klipper-ui`.
 4. Merge. Printers see the update in Mainsail (Machine › Update Manager › KlipperScreen).
 
 ## How to merge upstream KlipperScreen updates
-**Automatic (optional):** the `starstack-upstream-sync` workflow runs weekly. When upstream has new commits it
+**Automatic (optional):** the `starstack-upstream-sync` workflow runs monthly (1st of the month; weekly until 2026-10-31). When upstream has new commits it
 pushes them to branch `upstream-sync` and **fails on purpose** with a one-click "create pull request" link in the
 run summary (the StarStackCo org doesn't let workflows open PRs or issues; GitHub emails failed runs).
 **Red run = updates waiting, green = nothing new.** It's a setting: repository
@@ -101,7 +101,7 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 30 | 2026-10-05 | `panels/ss_stopped.py` | "Printer stopped / error" (hook #8) |
 | 31 | 2026-10-05 | `panels/ss_starting.py` | "Starting printer…" (hook #11) |
 | 32 | 2026-10-05 | `tools/starstack/` | Theme source (`style.css`, `brand/`), `build_theme.py` (pinned downloads), `check_markers.py`, `UPSTREAM_BASE` |
-| 33 | 2026-10-05 | `.github/workflows/starstack-ci.yml`, `starstack-upstream-sync.yml` | CI checks + optional weekly upstream merge PR |
+| 33 | 2026-10-05 | `.github/workflows/starstack-ci.yml`, `starstack-upstream-sync.yml` | CI checks + optional monthly upstream merge PR |
 | 34 | 2026-10-05 | `TRADEMARKS.md` | StarStack name/logo are not covered by the AGPL license |
 | 35 | 2026-10-05 | `panels/ss_console.py` | Console with the command box at the top (stock one has it at the bottom edge); opened from Settings › Advanced |
 | 36 | 2026-10-05 | `panels/ss_network.py` | StarStack Wi-Fi page (klipper-ui B-6): one row per network, tap to connect, password with the StarStack keyboard, Disconnect/Forget in `ss_dialog` (now with an optional third button). Upstream's `sdbus_nm` backend unchanged; enterprise Wi-Fi via the stock page |

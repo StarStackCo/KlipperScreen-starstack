@@ -4,7 +4,7 @@
 The steps are in FORK_CHANGES.md ("How to merge upstream KlipperScreen updates"); follow them. Notes from
 the last merge (v0.4.7-196, klipper-ui D-060):
 
-- The weekly `starstack-upstream-sync` workflow pushes upstream's new commits to `upstream-sync` and fails
+- The monthly `starstack-upstream-sync` workflow pushes upstream's new commits to `upstream-sync` and fails
   on purpose with a compare link (D-051). Merging is a decision for the user (it was backlog B-2).
 - Conflicts can only be inside `STARSTACK-CHANGE` blocks. Re-apply each block's intent on the new upstream
   code and keep its number; then `check_markers.py` and update `tools/starstack/UPSTREAM_BASE`.
