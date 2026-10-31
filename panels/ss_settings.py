@@ -9,10 +9,20 @@ from gi.repository import Gtk
 from ks_includes import starstack as ss
 from ks_includes.screen_panel import ScreenPanel
 
+# Default speed preset, kept by Klipper (save_variables `default_speed`) and restored after every
+# print by klipper-ui's macros (D-104).
+SPEEDS = [
+    ("silent", "Silent 50%"),
+    ("normal", "Normal 100%"),
+    ("fast", "Fast 125%"),
+    ("draft", "Draft 150%"),
+]
+
 
 class Panel(ScreenPanel):
     def __init__(self, screen, title, **kwargs):
         super().__init__(screen, title)
+        self.default_speed = None  # read from Klipper on activate
         page = ss.page_box(spacing=6)
         page.pack_start(ss.label(_("Settings"), "ss-page-title"), False, False, 0)
         self.pager = ss.Pager()
@@ -90,6 +100,7 @@ class Panel(ScreenPanel):
         rows.append((ss.label(_("PRINTER"), "ss-section"), "section"))
         lock = " · " + _("locked while printing") if printing else ""
         for name, note, cb, ok in [
+            (_("Default speed"), self.speed_label(), self.pick_speed, True),
             (_("Wi-Fi"), "", lambda: self.open("ss_network", _("Wi-Fi")), True),
             (
                 _("Screen & language"),
@@ -141,5 +152,28 @@ class Panel(ScreenPanel):
             self._screen._ws.api.restart_firmware,
         )
 
+    def speed_label(self):
+        return dict(SPEEDS).get(self.default_speed or "normal", "")
+
+    def pick_speed(self):
+        def picked(mode):
+            self.default_speed = mode
+            ss.gcode(self._screen, f"SET_DEFAULT_SPEED MODE={mode}")
+            self.build()
+
+        ss.choose(
+            self._screen,
+            _("Default speed"),
+            [(m, _(label)) for m, label in SPEEDS],
+            self.default_speed or "normal",
+            picked,
+        )
+
+    def _got_speed(self, status):
+        var = status.get("save_variables", {}).get("variables", {}).get("default_speed")
+        self.default_speed = str(var).lower() if var else "normal"
+        self.build()
+
     def activate(self):
         self.build(reset=True)
+        ss.query_objects(self._screen, {"save_variables": None}, self._got_speed)
