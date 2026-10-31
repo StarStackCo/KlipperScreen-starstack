@@ -961,6 +961,7 @@ class KlipperScreen(Gtk.ApplicationWindow):
             self.show_panel("extrude")
 
     def state_printing(self):
+        self.base_panel.close_update_dialog(force=True)
         # STARSTACK-CHANGE #8 BEGIN: StarStack Home replaces job_status
         if starstack.enabled(self):
             self.show_panel("ss_home", remove_all=True)
