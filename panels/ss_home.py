@@ -36,6 +36,8 @@ class Panel(ScreenPanel):
         self.stack.add_named(self.build_idle(), "idle")
         self.stack.add_named(self.build_printing(), "printing")
         self.stack.add_named(self.build_done(), "done")
+        self.stack.add_named(self.build_error(), "error")
+        self.error_key = None  # error shown; Klipper's own message is fetched once per error
         self.content.add(self.stack)
         self.content.show_all()
 
@@ -741,6 +743,89 @@ class Panel(ScreenPanel):
         self.recent_cache = (0, [])
         self.update_view()
 
+    # ------------------------------------------------------------ error (klipper-ui D-105)
+    # The start of a print failed (homing, probe, bed mesh, file) or warned (uneven bed): what
+    # happened, what to check, Klipper's own message, then Dismiss / Print again.
+    def build_error(self):
+        page = ss.page_box()
+        card = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=4, vexpand=True, valign=Gtk.Align.FILL
+        )
+        card.get_style_context().add_class("ss-card")
+        inner = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=4, valign=Gtk.Align.CENTER, vexpand=True
+        )
+        head = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
+        self.err_icon = self._gtk.Image("warning", 28, 28)
+        head.add(self.err_icon)
+        self.err_head = ss.label("", "ss-done-title")
+        head.add(self.err_head)
+        inner.add(head)
+        self.err_title = ss.label("", "ss-row-title", xalign=0.5, wrap=True)
+        self.err_check = ss.label("", "ss-btn-sub", xalign=0.5, wrap=True)
+        self.err_klipper = ss.label("", "ss-muted", xalign=0.5, lines=2)
+        self.err_file = ss.label("", "ss-muted", xalign=0.5, ellipsize=True)
+        for w in (self.err_title, self.err_check, self.err_klipper, self.err_file):
+            inner.add(w)
+        card.add(inner)
+        page.pack_start(card, True, True, 0)
+        row = ss.grid(2, spacing=8)
+        ok = ss.button(_("Dismiss"), css="ss-btn ss-btn-outline ss-btn-action")
+        ok.connect("clicked", self.dismiss_error)
+        self.err_again = ss.button(_("Print again"), css="ss-btn ss-btn-primary ss-btn-action")
+        self.err_again.connect("clicked", self.error_print_again)
+        ss.grid_add(row, [ok, self.err_again])
+        page.add(row)
+        return page
+
+    def current_error(self):
+        e = self._printer.get_stat("gcode_macro _SS_ERROR", "current")
+        return e if isinstance(e, dict) and e.get("code") else None
+
+    def show_error(self, e):
+        warn = e.get("level") == "warn"
+        self.err_head.set_text(_("Warning") if warn else _("Print canceled"))
+        ss.set_class(self.err_head, "ss-text-warning", warn)
+        ss.set_class(self.err_head, "ss-text-error", not warn)
+        detail = e.get("detail") or ""
+        self.err_title.set_text(e.get("title", "") + (f" ({detail})" if detail else ""))
+        self.err_check.set_text(e.get("check", ""))
+        fn = e.get("file") or ""
+        self.err_file.set_text(ss.pretty_name(fn) if fn else "")
+        self.err_again.set_visible(bool(fn) and not warn and e.get("code") != "file_bounds")
+        key = f"{e.get('code')}|{fn}|{detail}"
+        if key != self.error_key:
+            self.error_key = key
+            self.err_klipper.set_text("")
+            if not warn:
+                ss.request(self._screen, "server.gcode_store", {"count": 100}, self._got_store)
+        self.stack.set_visible_child_name("error")
+
+    def _got_store(self, result):
+        """Klipper's own error line just before our "Print canceled" (e.g. "No trigger on x
+        after full movement"), so the card shows exactly what Klipper reported."""
+        lines = [g.get("message", "") for g in (result or {}).get("gcode_store", [])]
+        ours = ("!! Print canceled", "!! Bed is uneven")
+        end = max((i for i, m in enumerate(lines) if m.startswith(ours)), default=len(lines))
+        for m in reversed(lines[:end]):
+            if m.startswith("!! ") and "trying again" not in m:
+                self.err_klipper.set_text(_("Klipper:") + " " + m[3:].strip())
+                break
+        return False
+
+    def dismiss_error(self, *args):
+        self.error_key = None
+        ss.gcode(self._screen, "_SS_ERROR_CLEAR")
+        self.stack.set_visible_child_name("idle")
+        self.refresh_idle()
+
+    def error_print_again(self, *args):
+        e = self.current_error() or {}
+        ss.gcode(self._screen, "_SS_ERROR_CLEAR")
+        self.error_key = None
+        if e.get("file"):
+            ss.bed_clear_then_print(self._screen, e["file"])
+
     # ------------------------------------------------------------ common
     def update_view(self):
         p = self._printer
@@ -750,6 +835,8 @@ class Panel(ScreenPanel):
         if ss.is_printing(p):
             self.stack.set_visible_child_name("printing")
             self.refresh_printing()
+        elif self.current_error():
+            self.show_error(self.current_error())
         elif (
             state in ("complete", "error")
             and p.get_stat("print_stats", "filename")
