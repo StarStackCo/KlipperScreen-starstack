@@ -17,12 +17,16 @@ SPEEDS = [
     ("fast", "Fast 125%"),
     ("draft", "Draft 150%"),
 ]
+# Installed nozzle (save_variables `nozzle_size`): PRINT_START refuses files sliced for another size
+# (klipper-ui D-106).
+NOZZLES = [0.25, 0.4, 0.5, 0.6, 0.8]
 
 
 class Panel(ScreenPanel):
     def __init__(self, screen, title, **kwargs):
         super().__init__(screen, title)
         self.default_speed = None  # read from Klipper on activate
+        self.nozzle = None
         page = ss.page_box(spacing=6)
         page.pack_start(ss.label(_("Settings"), "ss-page-title"), False, False, 0)
         self.pager = ss.Pager()
@@ -101,6 +105,7 @@ class Panel(ScreenPanel):
         lock = " · " + _("locked while printing") if printing else ""
         for name, note, cb, ok in [
             (_("Default speed"), self.speed_label(), self.pick_speed, True),
+            (_("Installed nozzle"), f"{self.nozzle or 0.4} mm", self.pick_nozzle, True),
             (_("Wi-Fi"), "", lambda: self.open("ss_network", _("Wi-Fi")), True),
             (
                 _("Screen & language"),
@@ -169,9 +174,25 @@ class Panel(ScreenPanel):
             picked,
         )
 
+    def pick_nozzle(self):
+        def picked(size):
+            self.nozzle = size
+            ss.gcode(self._screen, f"SET_NOZZLE SIZE={size}")
+            self.build()
+
+        ss.choose(
+            self._screen,
+            _("Installed nozzle"),
+            [(n, f"{n} mm") for n in NOZZLES],
+            self.nozzle or 0.4,
+            picked,
+        )
+
     def _got_speed(self, status):
-        var = status.get("save_variables", {}).get("variables", {}).get("default_speed")
+        variables = status.get("save_variables", {}).get("variables", {})
+        var = variables.get("default_speed")
         self.default_speed = str(var).lower() if var else "normal"
+        self.nozzle = variables.get("nozzle_size") or 0.4
         self.build()
 
     def activate(self):

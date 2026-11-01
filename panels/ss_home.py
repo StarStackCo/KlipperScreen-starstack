@@ -517,7 +517,8 @@ class Panel(ScreenPanel):
             pos = self._printer.get_stat("virtual_sdcard", "file_position") or 0
             # paused with filament in: unload, then load (D-097); after a runout: just load
             runout = self.runout() and not self.color_change_pause(pos)
-            starting = ss.start_stage(self._printer) == "filament"  # PRINT_START: none loaded
+            # PRINT_START: nothing loaded, or not the file's material (D-106)
+            starting = ss.start_stage(self._printer) in ("filament", "material")
             mode = "load" if runout or starting else "change"
             ss._push(self._screen, "ss_filament", ss_mode=mode)
         else:
@@ -555,6 +556,9 @@ class Panel(ScreenPanel):
         b_t = p.get_stat("heater_bed", "temperature") or 0
         if stage == "filament":
             return _("No filament loaded: load it, or pick which one is in")
+        if stage == "material":  # klipper-ui D-106
+            want = p.get_stat("gcode_macro PRINT_START", "want") or "?"
+            return _("This file is for") + f" {want}: " + _("change the filament or print anyway")
         if stage == "bed":
             return _("Heating bed") + f" {b_t:.0f} / {target:.0f}°"
         if stage in ("nozzle", "final"):
@@ -661,10 +665,12 @@ class Panel(ScreenPanel):
         )
         self.pause_btn.set_sensitive(not (starting or canceling or busy))
         self.mid_btn.set_sensitive(
-            not canceling and (not starting or stage in ("filament", "soak"))
+            not canceling and (not starting or stage in ("filament", "material", "soak"))
         )
         if stage == "soak":
             mid = _("Skip soak")
+        elif stage == "material":
+            mid = _("Change filament")
         elif stage == "filament" or (paused and self.runout() and not color_pause):
             mid = _("Load filament")
         elif paused:

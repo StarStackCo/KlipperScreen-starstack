@@ -729,7 +729,11 @@ def _check_filament(screen, filename, loaded):
             _("Different filament loaded"),
             _("This file is for") + f" {want}, " + _("but") + f" {loaded} " + _("is loaded."),
             _("Print anyway"),
-            lambda: _bed_clear(screen, filename),
+            # tell PRINT_START too, so it doesn't ask again (klipper-ui D-106)
+            lambda: (
+                gcode(screen, f"ACCEPT_MATERIAL MATERIAL={want}"),
+                _bed_clear(screen, filename),
+            ),
             kind="warning",
             no_label=_("Go back"),
             alt_label=_("Change filament"),
