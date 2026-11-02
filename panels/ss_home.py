@@ -390,6 +390,9 @@ class Panel(ScreenPanel):
 
     def toggle_pause(self, widget):
         p = self._printer
+        if ss.start_stage(p) == "material":  # PRINT_START waits for the file's material (D-106)
+            ss.gcode(self._screen, "ACCEPT_MATERIAL", widget)
+            return
         if self.busy_text():  # a double tap must not undo the pause (or resume) just asked for
             return
         if p.state != "paused":
@@ -659,11 +662,16 @@ class Panel(ScreenPanel):
             ss.set_class(b, "ss-chip-active", pct == shown)
         resume_txt = _("Reheating…") if self.resume_at else _("Resume")
         busy = self.busy_text()
+        material = stage == "material"  # the file is for another filament: Print anyway (D-106)
         ss.set_button_text(
             self.pause_btn,
-            _("Getting ready") if starting else busy or (resume_txt if paused else _("Pause")),
+            _("Print anyway")
+            if material
+            else _("Getting ready")
+            if starting
+            else busy or (resume_txt if paused else _("Pause")),
         )
-        self.pause_btn.set_sensitive(not (starting or canceling or busy))
+        self.pause_btn.set_sensitive(material or not (starting or canceling or busy))
         self.mid_btn.set_sensitive(
             not canceling and (not starting or stage in ("filament", "material", "soak"))
         )
@@ -798,7 +806,7 @@ class Panel(ScreenPanel):
         self.err_check.set_text(e.get("check", ""))
         fn = e.get("file") or ""
         self.err_file.set_text(ss.pretty_name(fn) if fn else "")
-        # a file refused for this printer (outside the bed, nozzle, printer) would only be refused again
+        # refused for this printer (outside the bed, nozzle, printer): it would be refused again
         refused = e.get("code") in ("file_bounds", "nozzle", "printer")
         self.err_again.set_visible(bool(fn) and not warn and not refused)
         key = f"{e.get('code')}|{fn}|{detail}"
