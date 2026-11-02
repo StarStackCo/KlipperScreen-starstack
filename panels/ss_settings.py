@@ -164,6 +164,7 @@ class Panel(ScreenPanel):
 
     def pick_speed(self):
         self.in_sub = True
+
         def picked(mode):
             self.default_speed = mode
             ss.gcode(self._screen, f"SET_DEFAULT_SPEED MODE={mode}")
@@ -179,6 +180,7 @@ class Panel(ScreenPanel):
 
     def pick_nozzle(self):
         self.in_sub = True
+
         def picked(size):
             self.nozzle = size
             ss.gcode(self._screen, f"SET_NOZZLE SIZE={size}")
