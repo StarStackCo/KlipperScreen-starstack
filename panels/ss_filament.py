@@ -22,6 +22,8 @@ class Panel(ScreenPanel):
         self.mode = ss_mode
         self.mat = ss_material if ss_mode == "unload" else None
         self.loaded = None  # filled in asynchronously (save_variables query)
+        self.checked = ss_mode != "load"  # load: material buttons only once we know nothing is in
+        self.swap = False  # loading over a loaded filament: unload it first, then pick the new one
         if ss_mode == "load" or (self.change and not ss_material):
             ss.query_loaded_material(screen, self._got_loaded)
         self.step = "pick" if not self.mat else "heat"
@@ -81,7 +83,7 @@ class Panel(ScreenPanel):
             self.mat = material
             self.start_heat()
         elif self.mode == "load":
-            self.loaded = material
+            self.loaded, self.checked = material, True
             self.render()
 
     # ---- actions
@@ -110,8 +112,16 @@ class Panel(ScreenPanel):
         if self.step == "ready":  # load: filament inserted
             ss.gcode(self._screen, f"LOAD_FILAMENT MATERIAL={self.mat}")
             self.step = "purge"
+        elif self.step == "pick" and self.mode == "load" and self.loaded:
+            # a filament is in: it must come out before a new one goes in (user, 2026-11-02)
+            self.swap, self.mode, self.mat = True, "unload", self.loaded
+            self.start_heat()
+            return
         elif self.step == "unloaded" and self.change:  # old filament out → load the new color
             self.mode, self.step = "load", "ready"
+        elif self.step == "unloaded" and self.swap:  # old filament out → pick the new one
+            self.swap, self.loaded, self.mat = False, None, None
+            self.mode, self.step = "load", "pick"
         elif self.step in ("purge", "unloaded"):
             ss.gcode(self._screen, "FILAMENT_DONE")
             ss.close_dialog(self._screen)
@@ -121,10 +131,7 @@ class Panel(ScreenPanel):
         self.render()
 
     def alt(self, widget):
-        if self.step == "pick" and self.mode == "load" and self.loaded:
-            self.mode, self.mat = "unload", self.loaded
-            self.start_heat()
-        elif self.step == "purge":
+        if self.step == "purge":
             ss.gcode(self._screen, "PURGE_MORE", widget)
 
     def cancel(self, widget):
@@ -137,7 +144,7 @@ class Panel(ScreenPanel):
         load = self.mode == "load"
         self.title_lbl.set_text(
             _("Change filament")
-            if self.change
+            if self.change or self.swap or (load and self.loaded)
             else (_("Load filament") if load else _("Unload filament"))
         )
         steps = ["pick", "heat", "ready", "purge"] if load else ["pick", "heat", "unloaded"]
@@ -159,9 +166,16 @@ class Panel(ScreenPanel):
                 + "\n"
                 + _("Which material is in the printer?")
             )
-            if load and self.loaded:
-                txt += "\n" + f"{self.loaded} " + _("is loaded now. Unload it first.")
-                alt = _("Unload") + f" {self.loaded} " + _("first")
+            if load and not self.checked:
+                txt = _("Checking which filament is in…")
+            elif load and self.loaded:
+                txt = (
+                    f"{self.loaded} "
+                    + _("is in the printer.")
+                    + "\n"
+                    + _("It has to come out before you load a new filament.")
+                )
+                nxt = _("Unload") + f" {self.loaded}"
         elif self.step == "heat":
             txt = (
                 (_("Loading") if load else _("Unloading"))
@@ -183,7 +197,7 @@ class Panel(ScreenPanel):
             )
             alt, nxt = _("Purge more"), _("Done")
         else:  # unloaded
-            if self.change:
+            if self.change or self.swap:
                 txt = _("Unloading…") + "\n" + _("Pull the old filament out gently, then tap Next.")
                 nxt = _("Next")
             else:
@@ -194,7 +208,8 @@ class Panel(ScreenPanel):
                 )
                 nxt = _("Done")
         self.body.set_text(txt)
-        self.mats.set_visible(self.step == "pick")
+        # materials only once we know nothing is in (a loaded filament must come out first)
+        self.mats.set_visible(self.step == "pick" and self.checked and not (load and self.loaded))
         self.bar_box.set_visible(self.step == "heat")
         self.alt_btn.set_visible(alt is not None)
         self.next_btn.set_visible(nxt is not None)
