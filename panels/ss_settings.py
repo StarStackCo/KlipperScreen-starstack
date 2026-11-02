@@ -27,6 +27,7 @@ class Panel(ScreenPanel):
         super().__init__(screen, title)
         self.default_speed = None  # read from Klipper on activate
         self.nozzle = None
+        self.in_sub = False  # a sub-page is open: come back to the same Settings page
         page = ss.page_box(spacing=6)
         page.pack_start(ss.label(_("Settings"), "ss-page-title"), False, False, 0)
         self.pager = ss.Pager()
@@ -49,6 +50,7 @@ class Panel(ScreenPanel):
         return b
 
     def open(self, panel, title, **kw):
+        self.in_sub = True
         self._screen.show_panel(panel, title, **kw)
 
     def build(self, reset=False):
@@ -161,6 +163,7 @@ class Panel(ScreenPanel):
         return dict(SPEEDS).get(self.default_speed or "normal", "")
 
     def pick_speed(self):
+        self.in_sub = True
         def picked(mode):
             self.default_speed = mode
             ss.gcode(self._screen, f"SET_DEFAULT_SPEED MODE={mode}")
@@ -175,6 +178,7 @@ class Panel(ScreenPanel):
         )
 
     def pick_nozzle(self):
+        self.in_sub = True
         def picked(size):
             self.nozzle = size
             ss.gcode(self._screen, f"SET_NOZZLE SIZE={size}")
@@ -196,5 +200,7 @@ class Panel(ScreenPanel):
         self.build()
 
     def activate(self):
-        self.build(reset=True)
+        # from the rail: first page; back from a sub-page: the page it was opened from
+        self.build(reset=not self.in_sub)
+        self.in_sub = False
         ss.query_objects(self._screen, {"save_variables": None}, self._got_speed)
