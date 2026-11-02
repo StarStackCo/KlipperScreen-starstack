@@ -814,6 +814,8 @@ class Panel(ScreenPanel):
         ours = ("!! Print canceled", "!! Bed is uneven")
         end = max((i for i, m in enumerate(lines) if m.startswith(ours)), default=len(lines))
         for m in reversed(lines[:end]):
+            if m.startswith(ours):
+                break  # an earlier StarStack error: nothing from Klipper for this one
             if m.startswith("!! ") and "trying again" not in m:
                 self.err_klipper.set_text(_("Klipper:") + " " + m[3:].strip())
                 break
