@@ -639,6 +639,9 @@ class Panel(ScreenPanel):
                 if self.runout()
                 else _("Paused")
             )
+        warn = self.current_error()  # e.g. uneven bed: the print goes on, so say it here (D-105)
+        if warn and warn.get("level") == "warn" and not starting:
+            parts.append(_("Bed uneven") + f" {warn.get('detail', '')}".rstrip())
         if info.get("total_layer"):
             parts.append(_("Layer") + f" {info.get('current_layer') or 0} / {info['total_layer']}")
         # Alternate every 4 s between "Color change in X" and "X left" (files with color changes)
