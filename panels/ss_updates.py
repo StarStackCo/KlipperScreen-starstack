@@ -93,7 +93,7 @@ class Panel(ScreenPanel):
                     (
                         ss.row(
                             _("Update everything"),
-                            f"{len(todo)} " + _("updates"),
+                            f"{len(todo)} " + (_("update") if len(todo) == 1 else _("updates")),
                             lambda: self.ask("full"),
                             sensitive=not busy,
                             css_note="ss-text-sky",

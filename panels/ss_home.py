@@ -36,6 +36,8 @@ class Panel(ScreenPanel):
         self.stack.add_named(self.build_idle(), "idle")
         self.stack.add_named(self.build_printing(), "printing")
         self.stack.add_named(self.build_done(), "done")
+        self.stack.add_named(self.build_error(), "error")
+        self.error_key = None  # error shown; Klipper's own message is fetched once per error
         self.content.add(self.stack)
         self.content.show_all()
 
@@ -388,6 +390,9 @@ class Panel(ScreenPanel):
 
     def toggle_pause(self, widget):
         p = self._printer
+        if ss.start_stage(p) == "material":  # PRINT_START waits for the file's material (D-106)
+            ss.gcode(self._screen, "ACCEPT_MATERIAL", widget)
+            return
         if self.busy_text():  # a double tap must not undo the pause (or resume) just asked for
             return
         if p.state != "paused":
@@ -515,7 +520,8 @@ class Panel(ScreenPanel):
             pos = self._printer.get_stat("virtual_sdcard", "file_position") or 0
             # paused with filament in: unload, then load (D-097); after a runout: just load
             runout = self.runout() and not self.color_change_pause(pos)
-            starting = ss.start_stage(self._printer) == "filament"  # PRINT_START: none loaded
+            # PRINT_START: nothing loaded, or not the file's material (D-106)
+            starting = ss.start_stage(self._printer) in ("filament", "material")
             mode = "load" if runout or starting else "change"
             ss._push(self._screen, "ss_filament", ss_mode=mode)
         else:
@@ -553,6 +559,9 @@ class Panel(ScreenPanel):
         b_t = p.get_stat("heater_bed", "temperature") or 0
         if stage == "filament":
             return _("No filament loaded: load it, or pick which one is in")
+        if stage == "material":  # klipper-ui D-106
+            want = p.get_stat("gcode_macro PRINT_START", "want") or "?"
+            return _("This file is for") + f" {want}: " + _("change the filament or print anyway")
         if stage == "bed":
             return _("Heating bed") + f" {b_t:.0f} / {target:.0f}°"
         if stage in ("nozzle", "final"):
@@ -630,6 +639,9 @@ class Panel(ScreenPanel):
                 if self.runout()
                 else _("Paused")
             )
+        warn = self.current_error()  # e.g. uneven bed: the print goes on, so say it here (D-105)
+        if warn and warn.get("level") == "warn" and not starting:
+            parts.append(_("Bed uneven") + f" {warn.get('detail', '')}".rstrip())
         if info.get("total_layer"):
             parts.append(_("Layer") + f" {info.get('current_layer') or 0} / {info['total_layer']}")
         # Alternate every 4 s between "Color change in X" and "X left" (files with color changes)
@@ -653,16 +665,23 @@ class Panel(ScreenPanel):
             ss.set_class(b, "ss-chip-active", pct == shown)
         resume_txt = _("Reheating…") if self.resume_at else _("Resume")
         busy = self.busy_text()
+        material = stage == "material"  # the file is for another filament: Print anyway (D-106)
         ss.set_button_text(
             self.pause_btn,
-            _("Getting ready") if starting else busy or (resume_txt if paused else _("Pause")),
+            _("Print anyway")
+            if material
+            else _("Getting ready")
+            if starting
+            else busy or (resume_txt if paused else _("Pause")),
         )
-        self.pause_btn.set_sensitive(not (starting or canceling or busy))
+        self.pause_btn.set_sensitive(material or not (starting or canceling or busy))
         self.mid_btn.set_sensitive(
-            not canceling and (not starting or stage in ("filament", "soak"))
+            not canceling and (not starting or stage in ("filament", "material", "soak"))
         )
         if stage == "soak":
             mid = _("Skip soak")
+        elif stage == "material":
+            mid = _("Change filament")
         elif stage == "filament" or (paused and self.runout() and not color_pause):
             mid = _("Load filament")
         elif paused:
@@ -741,6 +760,93 @@ class Panel(ScreenPanel):
         self.recent_cache = (0, [])
         self.update_view()
 
+    # ------------------------------------------------------------ error (klipper-ui D-105)
+    # The start of a print failed (homing, probe, bed mesh, file) or warned (uneven bed): what
+    # happened, what to check, Klipper's own message, then Dismiss / Print again.
+    def build_error(self):
+        page = ss.page_box()
+        card = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=4, vexpand=True, valign=Gtk.Align.FILL
+        )
+        card.get_style_context().add_class("ss-card")
+        inner = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=4, valign=Gtk.Align.CENTER, vexpand=True
+        )
+        head = Gtk.Box(spacing=8, halign=Gtk.Align.CENTER)
+        self.err_icon = self._gtk.Image("warning", 28, 28)
+        head.add(self.err_icon)
+        self.err_head = ss.label("", "ss-done-title")
+        head.add(self.err_head)
+        inner.add(head)
+        self.err_title = ss.label("", "ss-row-title", xalign=0.5, wrap=True)
+        self.err_check = ss.label("", "ss-btn-sub", xalign=0.5, wrap=True)
+        self.err_klipper = ss.label("", "ss-muted", xalign=0.5, lines=2)
+        self.err_file = ss.label("", "ss-muted", xalign=0.5, ellipsize=True)
+        for w in (self.err_title, self.err_check, self.err_klipper, self.err_file):
+            inner.add(w)
+        card.add(inner)
+        page.pack_start(card, True, True, 0)
+        row = ss.grid(2, spacing=8)
+        ok = ss.button(_("Dismiss"), css="ss-btn ss-btn-outline ss-btn-action")
+        ok.connect("clicked", self.dismiss_error)
+        self.err_again = ss.button(_("Print again"), css="ss-btn ss-btn-primary ss-btn-action")
+        self.err_again.connect("clicked", self.error_print_again)
+        ss.grid_add(row, [ok, self.err_again])
+        page.add(row)
+        return page
+
+    def current_error(self):
+        e = self._printer.get_stat("gcode_macro _SS_ERROR", "current")
+        return e if isinstance(e, dict) and e.get("code") else None
+
+    def show_error(self, e):
+        warn = e.get("level") == "warn"
+        self.err_head.set_text(_("Warning") if warn else _("Print canceled"))
+        ss.set_class(self.err_head, "ss-text-warning", warn)
+        ss.set_class(self.err_head, "ss-text-error", not warn)
+        detail = e.get("detail") or ""
+        self.err_title.set_text(e.get("title", "") + (f" ({detail})" if detail else ""))
+        self.err_check.set_text(e.get("check", ""))
+        fn = e.get("file") or ""
+        self.err_file.set_text(ss.pretty_name(fn) if fn else "")
+        # refused for this printer (outside the bed, nozzle, printer): it would be refused again
+        refused = e.get("code") in ("file_bounds", "nozzle", "printer")
+        self.err_again.set_visible(bool(fn) and not warn and not refused)
+        key = f"{e.get('code')}|{fn}|{detail}"
+        if key != self.error_key:
+            self.error_key = key
+            self.err_klipper.set_text("")
+            if not warn:
+                ss.request(self._screen, "server.gcode_store", {"count": 100}, self._got_store)
+        self.stack.set_visible_child_name("error")
+
+    def _got_store(self, result):
+        """Klipper's own error line just before our "Print canceled" (e.g. "No trigger on x
+        after full movement"), so the card shows exactly what Klipper reported."""
+        lines = [g.get("message", "") for g in (result or {}).get("gcode_store", [])]
+        ours = ("!! Print canceled", "!! Bed is uneven")
+        end = max((i for i, m in enumerate(lines) if m.startswith(ours)), default=len(lines))
+        for m in reversed(lines[:end]):
+            if m.startswith(ours):
+                break  # an earlier StarStack error: nothing from Klipper for this one
+            if m.startswith("!! ") and "trying again" not in m:
+                self.err_klipper.set_text(_("Klipper:") + " " + m[3:].strip())
+                break
+        return False
+
+    def dismiss_error(self, *args):
+        self.error_key = None
+        ss.gcode(self._screen, "_SS_ERROR_CLEAR")
+        self.stack.set_visible_child_name("idle")
+        self.refresh_idle()
+
+    def error_print_again(self, *args):
+        e = self.current_error() or {}
+        ss.gcode(self._screen, "_SS_ERROR_CLEAR")
+        self.error_key = None
+        if e.get("file"):
+            ss.bed_clear_then_print(self._screen, e["file"])
+
     # ------------------------------------------------------------ common
     def update_view(self):
         p = self._printer
@@ -750,6 +856,8 @@ class Panel(ScreenPanel):
         if ss.is_printing(p):
             self.stack.set_visible_child_name("printing")
             self.refresh_printing()
+        elif self.current_error():
+            self.show_error(self.current_error())
         elif (
             state in ("complete", "error")
             and p.get_stat("print_stats", "filename")

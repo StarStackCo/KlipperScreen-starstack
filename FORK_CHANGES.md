@@ -22,7 +22,7 @@ Design/plan docs live in the separate repo `StarStackCo/klipper-ui`.
 4. Merge. Printers see the update in Mainsail (Machine › Update Manager › KlipperScreen).
 
 ## How to merge upstream KlipperScreen updates
-**Automatic (optional):** the `starstack-upstream-sync` workflow runs weekly. When upstream has new commits it
+**Automatic (optional):** the `starstack-upstream-sync` workflow runs monthly (1st of the month; weekly until 2026-10-31). When upstream has new commits it
 pushes them to branch `upstream-sync` and **fails on purpose** with a one-click "create pull request" link in the
 run summary (the StarStackCo org doesn't let workflows open PRs or issues; GitHub emails failed runs).
 **Red run = updates waiting, green = nothing new.** It's a setting: repository
@@ -80,7 +80,7 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 18 | 2026-10-06 | `screen.py` (before `import gi`) | `GDK_GL=disable`: GDK no longer sets up OpenGL, which loaded Mesa's software renderer (~160 MB with LLVM) at every start and cost ~8 s of SD-card reads during boot. Nothing in KlipperScreen draws with GL (klipper-ui D-076) |
 | 19 | 2026-10-06 | `screen.py` `_init_printer`, `websocket_disconnected` retry checks, new `_ss_retry` | Connection retries every 1 s for the first minute (was 4 s) and up to ~6 min (was 4 tries). The touchscreen now starts before Moonraker at boot, so the first try is usually refused (klipper-ui D-077) |
 | 48 | 2026-10-08 | `screen.py` `set_titlebar_items` | The nozzle/bed temperatures in the top bar show on the StarStack pages again. Upstream (since the v0.4.7 merge, D-060) only shows them on its own `main_menu` / `job_status`, so they had disappeared; the boot cover (`ss_starting`) still hides them |
-| 49 | 2026-10-08 | `screen.py` `ws_subscribe` | Also subscribes to `gcode_macro PRINT_START` (`stage`, `target`, `soak`: heat soak D-096): while the start of a print heats up the file is paused in the background (klipper-ui D-089), and Home shows "Heating bed 40/60°" instead of "Paused" |
+| 49 | 2026-10-08 | `screen.py` `ws_subscribe` | Also subscribes to `gcode_macro PRINT_START` (`stage`, `target`, `soak`: heat soak D-096, `want`: the file's material D-106) and `gcode_macro _SS_ERROR` (`current`: error card on Home, D-105): while the start of a print heats up the file is paused in the background (klipper-ui D-089), and Home shows "Heating bed 40/60°" instead of "Paused" |
 | 50 | 2026-10-08 | `screen.py` (imports, after the first `show_all`) | Starts the screen guard (row 51): ghost-touch filter and a full repaint every 5 s (klipper-ui D-094) |
 
 ### Files we added (never conflict)
@@ -101,7 +101,7 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 30 | 2026-10-05 | `panels/ss_stopped.py` | "Printer stopped / error" (hook #8) |
 | 31 | 2026-10-05 | `panels/ss_starting.py` | "Starting printer…" (hook #11) |
 | 32 | 2026-10-05 | `tools/starstack/` | Theme source (`style.css`, `brand/`), `build_theme.py` (pinned downloads), `check_markers.py`, `UPSTREAM_BASE` |
-| 33 | 2026-10-05 | `.github/workflows/starstack-ci.yml`, `starstack-upstream-sync.yml` | CI checks + optional weekly upstream merge PR |
+| 33 | 2026-10-05 | `.github/workflows/starstack-ci.yml`, `starstack-upstream-sync.yml` | CI checks + optional monthly upstream merge PR |
 | 34 | 2026-10-05 | `TRADEMARKS.md` | StarStack name/logo are not covered by the AGPL license |
 | 35 | 2026-10-05 | `panels/ss_console.py` | Console with the command box at the top (stock one has it at the bottom edge); opened from Settings › Advanced |
 | 36 | 2026-10-05 | `panels/ss_network.py` | StarStack Wi-Fi page (klipper-ui B-6): one row per network, tap to connect, password with the StarStack keyboard, Disconnect/Forget in `ss_dialog` (now with an optional third button). Upstream's `sdbus_nm` backend unchanged; enterprise Wi-Fi via the stock page |

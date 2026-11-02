@@ -386,7 +386,8 @@ class KlipperScreen(Gtk.ApplicationWindow):
                 "screws_tilt_adjust": ["results", "error", "max_deviation"],
                 # STARSTACK-CHANGE #49 BEGIN: PRINT_START's step, so Home shows "Heating bed 40/60°"
                 # instead of "Paused" while the start of a print heats up (klipper-ui D-089)
-                "gcode_macro PRINT_START": ["stage", "target", "soak"],  # soak: D-096
+                "gcode_macro PRINT_START": ["stage", "target", "soak", "want"],  # D-096, D-106
+                "gcode_macro _SS_ERROR": ["current"],  # error card on Home (klipper-ui D-105)
                 # STARSTACK-CHANGE #49 END
             }
         }
@@ -961,6 +962,7 @@ class KlipperScreen(Gtk.ApplicationWindow):
             self.show_panel("extrude")
 
     def state_printing(self):
+        self.base_panel.close_update_dialog(force=True)
         # STARSTACK-CHANGE #8 BEGIN: StarStack Home replaces job_status
         if starstack.enabled(self):
             self.show_panel("ss_home", remove_all=True)
