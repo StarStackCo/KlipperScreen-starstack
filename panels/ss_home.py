@@ -798,7 +798,9 @@ class Panel(ScreenPanel):
         self.err_check.set_text(e.get("check", ""))
         fn = e.get("file") or ""
         self.err_file.set_text(ss.pretty_name(fn) if fn else "")
-        self.err_again.set_visible(bool(fn) and not warn and e.get("code") != "file_bounds")
+        # a file refused for this printer (outside the bed, nozzle, printer) would only be refused again
+        refused = e.get("code") in ("file_bounds", "nozzle", "printer")
+        self.err_again.set_visible(bool(fn) and not warn and not refused)
         key = f"{e.get('code')}|{fn}|{detail}"
         if key != self.error_key:
             self.error_key = key
