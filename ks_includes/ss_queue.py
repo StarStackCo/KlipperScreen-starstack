@@ -121,7 +121,7 @@ class QueueView:
             ),
             ("cancel", lambda w: ss.queue_remove(self.screen, job["job_id"], self.refresh), True),
         ):
-            b = Gtk.Button(can_focus=False)
+            b = Gtk.Button(can_focus=False, name=f"queue-{icon}-{i + 1}")  # e.g. queue-arrow-up-2
             b.add(self.panel._gtk.Image(icon, 16, 16))
             for c in ("ss-btn", "ss-btn-qtool") + (("ss-btn-qremove",) if icon == "cancel" else ()):
                 b.get_style_context().add_class(c)
