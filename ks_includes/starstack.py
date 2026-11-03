@@ -744,6 +744,8 @@ def file_material(screen, filename):
     """PLA / PETG / TPU from the file's slicer metadata (e.g. "PETG;PETG" → "PETG"), else None."""
     meta = screen.files.get_file_info(filename) or {}
     kind = (meta.get("filament_type") or "").split(";")[0].strip().upper()
+    if kind == "PET":  # Orca's generic PETG preset says "PET" (klipper-ui D-113)
+        kind = "PETG"
     return next((m for m in MATERIALS if kind.startswith(m)), None)
 
 
