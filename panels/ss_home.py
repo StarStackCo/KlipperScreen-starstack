@@ -13,6 +13,7 @@ from gi.repository import GLib, Gtk
 
 from ks_includes import starstack as ss
 from ks_includes.screen_panel import ScreenPanel
+from ks_includes.ss_queue import QueueView
 
 THUMB = 56
 
@@ -36,7 +37,10 @@ class Panel(ScreenPanel):
         self.stack.add_named(self.build_idle(), "idle")
         self.stack.add_named(self.build_printing(), "printing")
         self.stack.add_named(self.build_done(), "done")
+        self.stack.add_named(self.build_done_queue(), "done_queue")
         self.stack.add_named(self.build_error(), "error")
+        self.queue_names = None  # queued file names last seen, to announce new ones
+        self.queue_notice = None  # (text, until): a job just added, shown on the Next up strip
         self.error_key = None  # error shown; Klipper's own message is fetched once per error
         self.content.add(self.stack)
         self.content.show_all()
@@ -104,7 +108,12 @@ class Panel(ScreenPanel):
             self.build_get_started()
         else:
             newest = own[0] if own else history[0]
-            self.idle_box.add(self.newest_card(newest))
+            queued = ss.queue_jobs()
+            if queued:  # jobs wait in the queue: they come first (klipper-ui D-111)
+                newest = queued[0]["filename"]
+                self.idle_box.add(self.queue_card(newest, len(queued)))
+            else:
+                self.idle_box.add(self.newest_card(newest))
             again = [f for f in history if f != newest]
             again += [f for f in own if f != newest and f not in again]
             if again:
@@ -138,6 +147,31 @@ class Panel(ScreenPanel):
         info.pack_start(Gtk.Box(vexpand=True), True, True, 0)
         go = ss.button(_("Print"), css="ss-btn ss-btn-primary ss-btn-mid")
         go.connect("clicked", lambda w: ss.bed_clear_then_print(self._screen, fn))
+        info.add(go)
+        card.pack_start(info, True, True, 0)
+        return card
+
+    def queue_card(self, fn, count):
+        """Idle with jobs in the queue: the next one, and the Queue page to start it."""
+        card = Gtk.Box(spacing=10)
+        card.get_style_context().add_class("ss-card")
+        card.get_style_context().add_class("ss-card-hl")
+        t = self.thumb(fn, 72)
+        t.set_size_request(72, 72)
+        card.pack_start(t, False, False, 0)
+        info = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        info.add(
+            ss.section(
+                _("Up next")
+                + " · "
+                + (_("1 in the queue") if count == 1 else f"{count} " + _("in the queue"))
+            )
+        )
+        info.add(ss.label(ss.pretty_name(fn), "ss-card-title", ellipsize=True))
+        info.add(ss.label(self.file_sub(fn), "ss-btn-sub", ellipsize=True))
+        info.pack_start(Gtk.Box(vexpand=True), True, True, 0)
+        go = ss.button(_("Open queue"), css="ss-btn ss-btn-primary ss-btn-mid")
+        go.connect("clicked", lambda w: self._screen.show_panel("ss_queue"))
         info.add(go)
         card.pack_start(info, True, True, 0)
         return card
@@ -287,8 +321,65 @@ class Panel(ScreenPanel):
         cancel.connect("clicked", self.ask_cancel)
         ss.grid_add(actions, [self.pause_btn, self.mid_btn, cancel])
         page.add(actions)
+        # Next up strip (klipper-ui D-111): the next queued job, or a moment after a job was
+        # added (e.g. "Upload and print" in Orca while printing) which one and where
+        self.next_strip = Gtk.Button(can_focus=False, hexpand=True)
+        for c in ("ss-btn", "ss-btn-outline", "ss-qstrip"):
+            self.next_strip.get_style_context().add_class(c)
+        strip = Gtk.Box(spacing=8)
+        self.next_head = ss.label("", "ss-section")
+        self.next_name = ss.label("", "ss-row-title", ellipsize=True)
+        strip.pack_start(self.next_head, False, False, 0)
+        strip.pack_start(self.next_name, True, True, 0)
+        strip.pack_end(ss.label("›", "ss-row-title"), False, False, 0)
+        self.next_strip.add(strip)
+        self.next_strip.connect("clicked", lambda w: self._screen.show_panel("ss_queue"))
+        self.next_strip.set_no_show_all(True)
+        page.add(self.next_strip)
         self.job_file = None
         return page
+
+    def refresh_next_strip(self):
+        jobs = ss.queue_jobs()
+        notice = self.queue_notice
+        if notice and time.time() > notice[1]:
+            notice = self.queue_notice = None
+        if notice:
+            self.next_head.set_text(_("ADDED"))
+            self.next_name.set_text(notice[0])
+        elif jobs:
+            more = len(jobs) - 1
+            self.next_head.set_text((_("Next up") + (f" · +{more}" if more else "")).upper())
+            fn = jobs[0]["filename"]
+            sub = self.file_sub(fn)
+            self.next_name.set_text(ss.pretty_name(fn) + (f"  {sub}" if sub else ""))
+        ss.set_class(self.next_strip, "ss-qstrip-new", bool(notice))
+        if jobs or notice:
+            self.next_strip.show_all()
+        self.next_strip.set_visible(bool(jobs or notice))
+
+    def queue_changed(self):
+        """The queue changed (here, in Mainsail or from an Orca upload): redraw what shows it,
+        and announce a job that was just added."""
+        names = [j.get("filename") for j in ss.queue_jobs()]
+        old = self.queue_names
+        self.queue_names = names
+        if old is not None:
+            added = [n for n in names if n not in old]
+            if added:
+                pos = names.index(added[-1]) + 1
+                self.queue_notice = (
+                    f"{ss.pretty_name(added[-1])} " + _("added to the queue") + f" (#{pos})",
+                    time.time() + 10,
+                )
+        self.refresh_next_strip()
+        shown = self.stack.get_visible_child_name()
+        if shown in ("done", "done_queue"):
+            self.update_view()
+            if self.stack.get_visible_child_name() == "done_queue":
+                self.done_queue.refresh()
+        elif shown == "idle":
+            self.refresh_idle()
 
     def pick_speed(self, widget, pct, macro):
         """Highlight the tapped preset immediately; it applies as soon as Klipper is free
@@ -501,6 +592,8 @@ class Panel(ScreenPanel):
         self.phase = not self.phase
         if self.stack.get_visible_child_name() == "printing":
             self.refresh_printing()
+            if self.queue_notice:
+                self.refresh_next_strip()  # the "added" notice ends after 10 s
         return True
 
     def runout(self):
@@ -751,6 +844,19 @@ class Panel(ScreenPanel):
         page.add(row)
         return page
 
+    def build_done_queue(self):
+        """Print finished and jobs wait (design "A4", klipper-ui D-111): clear the plate, reorder,
+        and the next job's filament is checked before it can start."""
+        page = ss.page_box(spacing=4)
+        head = Gtk.Box(spacing=8)
+        head.pack_start(self._gtk.Image("complete", 18, 18), False, False, 0)
+        self.dq_title = ss.label("", "ss-row-title", ellipsize=True)
+        head.pack_start(self.dq_title, True, True, 0)
+        page.pack_start(head, False, False, 0)
+        self.done_queue = QueueView(self, mode="start", on_close=self.dismiss)
+        page.pack_start(self.done_queue.box, True, True, 0)
+        return page
+
     def done_key(self):
         ps = self._printer.get_stat("print_stats") or {}
         return f"{ps.get('filename')}|{ps.get('total_duration')}"
@@ -866,11 +972,23 @@ class Panel(ScreenPanel):
             self.done_title.set_text(
                 _("Print complete") if state == "complete" else _("Print failed")
             )
+            name = ss.pretty_name(p.get_stat("print_stats", "filename"))
             self.done_name.set_text(
-                f"{ss.pretty_name(p.get_stat('print_stats', 'filename'))} · "
-                f"{ss.fmt_duration(p.get_stat('print_stats', 'print_duration'))}"
+                f"{name} · {ss.fmt_duration(p.get_stat('print_stats', 'print_duration'))}"
             )
-            self.stack.set_visible_child_name("done")
+            if ss.queue_jobs():
+                was = self.stack.get_visible_child_name()
+                self.dq_title.set_text(
+                    f"{name} "
+                    + (_("finished") if state == "complete" else _("failed"))
+                    + " · "
+                    + _("clear the plate")
+                )
+                self.stack.set_visible_child_name("done_queue")
+                if was != "done_queue":
+                    self.done_queue.refresh()
+            else:
+                self.stack.set_visible_child_name("done")
         else:
             if self.stack.get_visible_child_name() != "idle" or not self.idle_box.get_children():
                 self.refresh_idle()
@@ -891,10 +1009,13 @@ class Panel(ScreenPanel):
         if self._printer and not ss.is_printing(self._printer):
             self.refresh_idle()
         self.update_view()
+        ss.queue_refresh(self._screen, self.queue_changed)
 
     def process_update(self, action, data):
         if action == "notify_status_update":
             self.update_view()
+        elif action == "notify_job_queue_changed":
+            ss.queue_refresh(self._screen, self.queue_changed)
         elif action == "notify_metadata_update" and data.get("filename") == self.job_file:
             self.job_file = None  # rebuild the job card thumbnail now that metadata exists
             self.update_view()

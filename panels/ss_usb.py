@@ -1,7 +1,7 @@
 # STARSTACK-ADDED: "USB stick: N new files copied" prompt (FORK_CHANGES.md #37, klipper-ui D-065)
 # Opened by StarStackRail when klipper-ui's USB import (usb/ + tools/usb_import.py) has copied files
 # from a stick into the print jobs folder. The stick is already unmounted, so it can be pulled out.
-# Offers to print the newest copied file, unless a print is running.
+# Offers to print the newest copied file, or to queue it while a print is running (D-111).
 import gi
 
 gi.require_version("Gtk", "3.0")
@@ -70,9 +70,16 @@ class Panel(ScreenPanel):
                 )
             )
 
-        offer = bool(self.newest) and not busy  # file list may lag a moment; thumbnail waits
+        # file list may lag a moment; thumbnail waits. Printing: offer the queue (klipper-ui D-111)
+        offer = bool(self.newest)
+        self.busy = busy
         if offer:
-            card.add(ss.label(_("Print this one now?"), "ss-row-title"))
+            card.add(
+                ss.label(
+                    _("Add this one to the queue?") if busy else _("Print this one now?"),
+                    "ss-row-title",
+                )
+            )
             row = Gtk.Box(spacing=10)
             frame = Gtk.Box()
             frame.get_style_context().add_class("ss-thumb")
@@ -96,7 +103,10 @@ class Panel(ScreenPanel):
         close.connect("clicked", lambda w: ss.close_dialog(self._screen))
         widgets = [close]
         if offer:
-            go = ss.button(_("Print now"), css="ss-btn ss-btn-primary ss-btn-mid")
+            go = ss.button(
+                _("Add to queue") if busy else _("Print now"),
+                css="ss-btn ss-btn-primary ss-btn-mid",
+            )
             go.connect("clicked", self.print_now)
             widgets.append(go)
         ss.grid_add(buttons, widgets)
@@ -115,7 +125,10 @@ class Panel(ScreenPanel):
     def print_now(self, *args):
         fn = self.newest
         ss.close_dialog(self._screen)
-        ss.bed_clear_then_print(self._screen, fn)
+        if self.busy:
+            ss.queue_add(self._screen, fn)
+        else:
+            ss.bed_clear_then_print(self._screen, fn)
 
     def process_update(self, action, data):
         # the copied file's metadata (material, time) usually arrives a moment after the prompt

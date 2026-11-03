@@ -90,8 +90,8 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 3 | 2026-10-04 | `styles/starstack/` | Theme. **Generated** by `tools/starstack/build_theme.py`, never hand-edit |
 | 20 | 2026-10-04 | `ks_includes/starstack.py` | Shared helpers, materials, Advanced-mode store, in-page dialogs, **rail + STOP**, content guard (no page can push STOP off-screen), color-change scanner |
 | 21 | 2026-10-04 | `ks_includes/starstack_devtools.py` | Bench test helper. **Off** unless `~/.starstack_dev` exists |
-| 22 | 2026-10-04 | `panels/ss_home.py` | Home: idle / printing / paused / done, color-change countdown, reheat-then-resume |
-| 23 | 2026-10-04 | `panels/ss_print.py` | File grid, sort, pager |
+| 22 | 2026-10-04 | `panels/ss_home.py` | Home: idle / printing / paused / done, color-change countdown, reheat-then-resume; job queue: Next up strip while printing, Up next card when idle, print done with jobs waiting = queue + filament check (klipper-ui D-111) |
+| 23 | 2026-10-04 | `panels/ss_print.py` | File grid, sort, pager; while printing a tapped file is offered for the queue (klipper-ui D-111) |
 | 24 | 2026-10-04 | `panels/ss_controls.py` | Temps, fan, filament (remembered), movement (locked while printing) |
 | 25 | 2026-10-04 | `panels/ss_settings.py` | Settings + Advanced mode |
 | 26 | 2026-10-04 | `panels/ss_dialog.py`, `panels/ss_adjust.py` | In-page confirmations and value adjuster |
@@ -105,7 +105,7 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 34 | 2026-10-05 | `TRADEMARKS.md` | StarStack name/logo are not covered by the AGPL license |
 | 35 | 2026-10-05 | `panels/ss_console.py` | Console with the command box at the top (stock one has it at the bottom edge); opened from Settings › Advanced |
 | 36 | 2026-10-05 | `panels/ss_network.py` | StarStack Wi-Fi page (klipper-ui B-6): one row per network, tap to connect, password with the StarStack keyboard, Disconnect/Forget in `ss_dialog` (now with an optional third button). Upstream's `sdbus_nm` backend unchanged; enterprise Wi-Fi via the stock page |
-| 37 | 2026-10-05 | `panels/ss_usb.py` | "USB stick: N new files copied" prompt with "Print this one now?" for the newest file (klipper-ui D-065). Opened by `StarStackRail` when klipper-ui's USB import writes `gcodes/.starstack/usb_import.json` |
+| 37 | 2026-10-05 | `panels/ss_usb.py` | "USB stick: N new files copied" prompt with "Print this one now?" for the newest file (klipper-ui D-065), or "Add to queue" while printing (D-111). Opened by `StarStackRail` when klipper-ui's USB import writes `gcodes/.starstack/usb_import.json` |
 | 38 | 2026-10-06 | `panels/ss_choose.py` | Generic "pick one" page (`ss.choose()`), pages with arrows |
 | 39 | 2026-10-06 | `panels/ss_screen.py` | Screen & language (replaces stock settings): screen sleep, sleep while printing, 24 h clock, language, **Confirm emergency stop** (StarStack setting, default ON, used by the STOP button) |
 | 40 | 2026-10-06 | `panels/ss_about.py` | About this printer (replaces stock system panel) |
@@ -119,3 +119,5 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 51 | 2026-10-08 | `ks_includes/ss_screen_guard.py` | Ghost touches on the resistive panel (single ~24 ms readings) are dropped: each press waits up to 80 ms and a press released in under 40 ms is ignored. Full window repaint every 5 s so SPI noise bands on the display disappear (klipper-ui D-094) |
 | 52 | 2026-10-22 | `CLAUDE.md` | Instructions for Claude Code sessions: what the fork is, where the source of truth lives (klipper-ui docs), branch and marker rules, hazards (klipper-ui D-102) |
 | 53 | 2026-10-22 | `.claude/skills/fork-workflow/` | Claude Code skill: how to change, check, install and ship the fork, with gotchas from the decision log; `layout-checks.md`, `upstream-merge.md` (klipper-ui D-102) |
+| 54 | 2026-11-03 | `ks_includes/ss_queue.py` | Job queue list (Moonraker's queue, so Mainsail shows the same): move earlier / later / remove, next job's filament check, Not now / Print anyway / Change to X or Plate is clear, start (klipper-ui D-111). Queue helpers in `starstack.py`, styles `.ss-q*` |
+| 55 | 2026-11-03 | `panels/ss_queue.py` | Queue page, opened from Home (klipper-ui D-111) |

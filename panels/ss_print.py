@@ -90,7 +90,9 @@ class Panel(ScreenPanel):
         self.page = max(0, min(self.page, pages - 1))
         self.page_lbl.set_text(_("Page") + f" {self.page + 1} / {pages}")
         busy = ss.is_printing(self._printer)
-        self.note.set_text(_("A print is running") if busy else _("Tap a file to print"))
+        self.note.set_text(
+            _("A print is running: tap a file to queue it") if busy else _("Tap a file to print")
+        )
         for i, f in enumerate(files[self.page * PER_PAGE : (self.page + 1) * PER_PAGE]):
             fn = f["path"]
             meta = self._files.get_file_info(fn) or {}
@@ -115,8 +117,7 @@ class Panel(ScreenPanel):
             b.add(box)
             b.get_style_context().add_class("ss-btn")
             b.get_style_context().add_class("ss-tile")
-            b.set_sensitive(not busy)
-            b.connect("clicked", lambda w, p=fn: ss.bed_clear_then_print(self._screen, p))
+            b.connect("clicked", self.tapped, fn)
             self.grid.attach(b, i % 3, i // 3, 1, 1)
         if not files:
             self.grid.attach(
@@ -127,6 +128,24 @@ class Panel(ScreenPanel):
                 2,
             )
         self.grid.show_all()
+
+    def tapped(self, widget, fn):
+        if not ss.is_printing(self._printer):
+            ss.bed_clear_then_print(self._screen, fn)
+            return
+        # a print is running: offer the queue instead (klipper-ui D-111)
+        pos = len(ss.queue_jobs()) + 1
+        ss.confirm(
+            self._screen,
+            _("Add to the queue?"),
+            _("A print is running.")
+            + f" {ss.pretty_name(fn)} "
+            + _("will be")
+            + f" #{pos} "
+            + _("in the queue. It starts when you confirm the plate is clear."),
+            _("Add to queue"),
+            lambda: ss.queue_add(self._screen, fn),
+        )
 
     def cycle_sort(self, *args):
         self.sort = (self.sort + 1) % len(SORTS)
@@ -141,6 +160,7 @@ class Panel(ScreenPanel):
 
     def activate(self):
         self.refresh()
+        ss.queue_refresh(self._screen)  # for the queue position shown when adding
 
     def process_update(self, action, data):
         if action == "notify_filelist_changed":

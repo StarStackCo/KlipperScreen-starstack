@@ -176,6 +176,65 @@ def history(screen, limit, on_jobs):
     )
 
 
+# ---------------------------------------------------------------- job queue (klipper-ui D-111)
+# Moonraker's own job queue, so Mainsail's Queue panel shows the same list. It never starts the
+# next job by itself (automatic_transition off): the screen starts it when the plate is clear.
+_queue = {"jobs": [], "state": ""}
+
+
+def queue_jobs():
+    """Cached queue, next job first: [{"job_id", "filename", ...}]."""
+    return _queue["jobs"]
+
+
+def _queue_got(r, done):
+    if r is not None:
+        _queue["jobs"] = r.get("queued_jobs", []) or []
+        _queue["state"] = r.get("queue_state", "")
+    if done:
+        done()
+
+
+def queue_refresh(screen, done=None):
+    request(screen, "server.job_queue.status", {}, lambda r: _queue_got(r, done))
+
+
+def queue_add(screen, filename, done=None):
+    request(
+        screen,
+        "server.job_queue.post_job",
+        {"filenames": [filename]},
+        lambda r: _queue_got(r, done),
+    )
+
+
+def queue_remove(screen, job_id, done=None):
+    request(
+        screen, "server.job_queue.delete_job", {"job_ids": [job_id]}, lambda r: _queue_got(r, done)
+    )
+
+
+def queue_move(screen, index, step, done=None):
+    """Move job `index` one place earlier (step -1) or later (+1): the queue is posted again in
+    the new order (Moonraker only has "jump to the front")."""
+    names = [j.get("filename") for j in _queue["jobs"]]
+    to = index + step
+    if not 0 <= index < len(names) or not 0 <= to < len(names):
+        return
+    names[index], names[to] = names[to], names[index]
+    request(
+        screen,
+        "server.job_queue.post_job",
+        {"filenames": names, "reset": True},
+        lambda r: _queue_got(r, done),
+    )
+
+
+def queue_start(screen):
+    """Start the next job (the user confirmed the plate is clear)."""
+    request(screen, "server.job_queue.start", {}, lambda r: _queue_got(r, None))
+
+
 def thumbnail(panel, filename, size, image):
     """Fill a Gtk.Image with the file's thumbnail asynchronously (placeholder until loaded)."""
 
