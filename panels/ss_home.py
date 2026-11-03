@@ -292,10 +292,19 @@ class Panel(ScreenPanel):
         mid.add(self.job_name)
         mid.add(self.job_line)
         mid.add(self.progress)
+        # Next up line (klipper-ui D-111): the next queued job, or for 10 s after a job was added
+        # (e.g. "Upload and print" in Orca while printing) which one and where. Tapping the card
+        # opens the queue. In the card: the page has no height left for a strip of its own.
+        self.next_line = ss.label("", "ss-btn-sub ss-qnext", ellipsize=True)
+        self.next_line.set_no_show_all(True)
+        mid.add(self.next_line)
         card.pack_start(mid, True, True, 0)
         self.job_pct = ss.label("0%", "ss-pct", xalign=1.0)
         card.pack_end(self.job_pct, False, False, 0)
-        page.add(card)
+        card_tap = Gtk.EventBox()
+        card_tap.add(card)
+        card_tap.connect("button-release-event", self.open_queue)
+        page.add(card_tap)
 
         speeds = ss.grid(4)
         self.speed_btns = {}
@@ -321,23 +330,12 @@ class Panel(ScreenPanel):
         cancel.connect("clicked", self.ask_cancel)
         ss.grid_add(actions, [self.pause_btn, self.mid_btn, cancel])
         page.add(actions)
-        # Next up strip (klipper-ui D-111): the next queued job, or a moment after a job was
-        # added (e.g. "Upload and print" in Orca while printing) which one and where
-        self.next_strip = Gtk.Button(can_focus=False, hexpand=True)
-        for c in ("ss-btn", "ss-btn-outline", "ss-qstrip"):
-            self.next_strip.get_style_context().add_class(c)
-        strip = Gtk.Box(spacing=8)
-        self.next_head = ss.label("", "ss-section")
-        self.next_name = ss.label("", "ss-row-title", ellipsize=True)
-        strip.pack_start(self.next_head, False, False, 0)
-        strip.pack_start(self.next_name, True, True, 0)
-        strip.pack_end(ss.label("›", "ss-row-title"), False, False, 0)
-        self.next_strip.add(strip)
-        self.next_strip.connect("clicked", lambda w: self._screen.show_panel("ss_queue"))
-        self.next_strip.set_no_show_all(True)
-        page.add(self.next_strip)
         self.job_file = None
         return page
+
+    def open_queue(self, *args):
+        if ss.queue_jobs():
+            self._screen.show_panel("ss_queue")
 
     def refresh_next_strip(self):
         jobs = ss.queue_jobs()
@@ -345,18 +343,17 @@ class Panel(ScreenPanel):
         if notice and time.time() > notice[1]:
             notice = self.queue_notice = None
         if notice:
-            self.next_head.set_text(_("ADDED"))
-            self.next_name.set_text(notice[0])
+            self.next_line.set_text(notice[0])
         elif jobs:
             more = len(jobs) - 1
-            self.next_head.set_text((_("Next up") + (f" · +{more}" if more else "")).upper())
-            fn = jobs[0]["filename"]
-            sub = self.file_sub(fn)
-            self.next_name.set_text(ss.pretty_name(fn) + (f"  {sub}" if sub else ""))
-        ss.set_class(self.next_strip, "ss-qstrip-new", bool(notice))
-        if jobs or notice:
-            self.next_strip.show_all()
-        self.next_strip.set_visible(bool(jobs or notice))
+            self.next_line.set_text(
+                _("Next up:")
+                + f" {ss.pretty_name(jobs[0]['filename'])}"
+                + (f" · +{more} " + _("more") if more else "")
+                + "  ›"
+            )
+        ss.set_class(self.next_line, "ss-qnext-new", bool(notice))
+        self.next_line.set_visible(bool(jobs or notice))
 
     def queue_changed(self):
         """The queue changed (here, in Mainsail or from an Orca upload): redraw what shows it,
