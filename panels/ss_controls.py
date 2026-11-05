@@ -118,10 +118,10 @@ class Panel(ScreenPanel):
             p.get_stat("heater_bed", "target") or 0,
         )
         ss.set_button_text(
-            self.t_noz, None, f"{e_t:.0f}°  " + (f"→ {e_g:.0f}°" if e_g else _("off"))
+            self.t_noz, None, f"{e_t:.0f}°C  " + (f"→ {e_g:.0f}°C" if e_g else _("off"))
         )
         ss.set_button_text(
-            self.t_bed, None, f"{b_t:.0f}°  " + (f"→ {b_g:.0f}°" if b_g else _("off"))
+            self.t_bed, None, f"{b_t:.0f}°C  " + (f"→ {b_g:.0f}°C" if b_g else _("off"))
         )
         ss.set_button_text(self.t_fan, None, f"{(p.get_stat('fan', 'speed') or 0) * 100:.0f}%")
         ss.set_class(self.t_noz, "ss-hot", e_g > 0)

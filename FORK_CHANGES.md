@@ -82,6 +82,7 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 48 | 2026-10-08 | `screen.py` `set_titlebar_items` | The nozzle/bed temperatures in the top bar show on the StarStack pages again. Upstream (since the v0.4.7 merge, D-060) only shows them on its own `main_menu` / `job_status`, so they had disappeared; the boot cover (`ss_starting`) still hides them |
 | 49 | 2026-10-08 | `screen.py` `ws_subscribe` | Also subscribes to `gcode_macro PRINT_START` (`stage`, `target`, `soak`: heat soak D-096, `want`: the file's material D-106) and `gcode_macro _SS_ERROR` (`current`: error card on Home, D-105): while the start of a print heats up the file is paused in the background (klipper-ui D-089), and Home shows "Heating bed 40/60°" instead of "Paused" |
 | 50 | 2026-10-08 | `screen.py` (imports, after the first `show_all`) | Starts the screen guard (row 51): ghost-touch filter and a full repaint every 5 s (klipper-ui D-094) |
+| 56 | 2026-11-05 | `panels/base_panel.py` `process_update` | Title bar temperatures with their unit, 60°C (klipper-ui D-114) |
 
 ### Files we added (never conflict)
 | # | Date | Files | What |

@@ -224,7 +224,7 @@ class Panel(ScreenPanel):
             return
         t = self._printer.get_stat("extruder", "temperature") or 0
         tgt = self.target()
-        self.temp_lbl.set_text(f"{t:.0f}° / {tgt}°")
+        self.temp_lbl.set_text(f"{t:.0f}°C / {tgt}°C")
         self.bar.set_fraction(max(0.0, min(1.0, t / tgt)) if tgt else 0)
         if self.hot() and not self.sent_move:
             self.sent_move = True

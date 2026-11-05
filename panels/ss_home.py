@@ -654,11 +654,11 @@ class Panel(ScreenPanel):
             want = p.get_stat("gcode_macro PRINT_START", "want") or "?"
             return _("This file is for") + f" {want}"
         if stage == "bed":
-            return _("Heating bed") + f" {b_t:.0f}°"
+            return _("Heating bed") + f" {b_t:.0f}°C"
         if stage in ("nozzle", "final"):
-            return _("Heating nozzle") + f" {e_t:.0f}°"
+            return _("Heating nozzle") + f" {e_t:.0f}°C"
         if stage == "cool":
-            return _("Cooling nozzle") + f" {e_t:.0f}°"
+            return _("Cooling nozzle") + f" {e_t:.0f}°C"
         if stage == "prep":
             return _("Homing and cleaning")
         if stage == "soak":  # target: seconds left (klipper-ui D-096)
@@ -730,7 +730,6 @@ class Panel(ScreenPanel):
             or p.get_stat("print_stats", "total_duration")
             or 0
         )
-        info = p.get_stat("print_stats", "info") or {}
         color_pause = paused and self.color_change_pause(pos)
         parts = []
         if canceling:
@@ -738,7 +737,7 @@ class Panel(ScreenPanel):
         elif starting:
             parts.append(self.start_text(stage))
         elif self.resume_at:
-            parts.append(_("Reheating to") + f" {self.resume_at:.0f}°, " + _("then resuming"))
+            parts.append(_("Reheating to") + f" {self.resume_at:.0f}°C, " + _("then resuming"))
         elif paused:
             parts.append(
                 _("Color change")
@@ -758,9 +757,6 @@ class Panel(ScreenPanel):
             parts.append(ss.fmt_duration(left) + " " + _("left"))
             if not paused:  # paused: nobody knows when it resumes
                 parts.append(self.finish_text(left))
-        # last, so a long line cuts this off and not the times
-        if info.get("total_layer") and not starting:
-            parts.append(_("Layer") + f" {info.get('current_layer') or 0} / {info['total_layer']}")
         self.job_line.set_text(" · ".join(parts))
         ss.set_class(self.job_line, "ss-text-sky", show_color and not paused)
         self.progress.set_fraction(self.start_fraction(stage) if starting else min(1.0, progress))
@@ -809,8 +805,8 @@ class Panel(ScreenPanel):
                 p.get_stat("heater_bed", "target") or 0,
             )
             vals = {
-                "nozzle": (f"{e_t:.0f}°", f"/ {e_g:.0f}°"),
-                "bed": (f"{b_t:.0f}°", f"/ {b_g:.0f}°"),
+                "nozzle": (f"{e_t:.0f}°C", f"/ {e_g:.0f}°C"),
+                "bed": (f"{b_t:.0f}°C", f"/ {b_g:.0f}°C"),
                 "fan": (f"{(p.get_stat('fan', 'speed') or 0) * 100:.0f}%", _("part")),
                 "flow": (
                     f"{(p.get_stat('gcode_move', 'extrude_factor') or 1) * 100:.0f}%",
