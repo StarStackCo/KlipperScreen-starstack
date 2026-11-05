@@ -5,6 +5,7 @@ import logging
 import os
 import threading
 import time
+from datetime import datetime, timedelta
 
 import gi
 
@@ -31,7 +32,7 @@ class Panel(ScreenPanel):
         self.btn_busy = None  # ("pausing" | "resuming", time tapped): button locked until done
         self.speed_pending = None  # tapped speed preset not yet applied by Klipper
         self.cc = {"changes": [], "m73": []}  # color changes in the current file
-        self.phase = False  # alternates "color change in" / "time left"
+        self.phase = 0  # counts 4 s steps: the job line takes turns (time left, finish, color)
         self.ticker = None
         self.stack = Gtk.Stack(hexpand=True, vexpand=True)
         self.stack.add_named(self.build_idle(), "idle")
@@ -586,7 +587,7 @@ class Panel(ScreenPanel):
         return any(0 <= pos - o < 400 for o in self.cc["changes"])
 
     def tick(self):
-        self.phase = not self.phase
+        self.phase += 1
         if self.stack.get_visible_child_name() == "printing":
             self.refresh_printing()
             if self.queue_notice:
@@ -673,6 +674,15 @@ class Panel(ScreenPanel):
         estimate = (self._files.get_file_info(fn) or {}).get("estimated_time")
         return estimate * (1 - progress) if estimate else None
 
+    def finish_text(self, left):
+        """When the print ends: "done 3:45 PM", "done tomorrow 9:10 AM", "done Sat 9:10 AM"."""
+        end = datetime.now() + timedelta(seconds=left)
+        h24 = self._config.get_main_config().getboolean("24htime", True)
+        clock = end.strftime("%H:%M") if h24 else end.strftime("%I:%M %p").lstrip("0")
+        days = (end.date() - datetime.now().date()).days
+        day = "" if days == 0 else _("tomorrow") + " " if days == 1 else end.strftime("%a ")
+        return _("done") + f" {day}{clock}"
+
     def start_fraction(self, stage):
         p = self._printer
         target = p.get_stat("gcode_macro PRINT_START", "target") or 0
@@ -742,17 +752,25 @@ class Panel(ScreenPanel):
             parts.append(_("Bed uneven") + f" {warn.get('detail', '')}".rstrip())
         if info.get("total_layer") and not starting:
             parts.append(_("Layer") + f" {info.get('current_layer') or 0} / {info['total_layer']}")
-        # Alternate every 4 s between "Color change in X" and "X left" (files with color changes)
+        # Every 4 s the next one: "X left", "done 3:45 PM", "Color change in X" (if any)
         eta = None if paused or starting else self.color_change_eta(fn, pos, dur)
-        if eta is not None and self.phase:
+        left = self.time_left(fn, progress, dur)
+        cycle = []
+        if left is not None:
+            cycle.append(ss.fmt_duration(left) + " " + _("left"))
+            if not paused:  # paused: nobody knows when it resumes
+                cycle.append(self.finish_text(left))
+        color_at = len(cycle)
+        if eta is not None:
             soon = _("under 1 min") if eta < 60 else ss.fmt_duration(eta)
-            parts.append(_("Color change in") + " " + soon)
-        else:
-            left = self.time_left(fn, progress, dur)
-            if left is not None:
-                parts.append(ss.fmt_duration(left) + " " + _("left"))
+            cycle.append(_("Color change in") + " " + soon)
+        show_color = False
+        if cycle:
+            step = self.phase % len(cycle)
+            show_color = eta is not None and step == color_at
+            parts.append(cycle[step])
         self.job_line.set_text(" · ".join(parts))
-        ss.set_class(self.job_line, "ss-text-sky", eta is not None and self.phase and not paused)
+        ss.set_class(self.job_line, "ss-text-sky", show_color and not paused)
         self.progress.set_fraction(self.start_fraction(stage) if starting else min(1.0, progress))
         self.job_pct.set_text("" if starting else f"{int(progress * 100)}%")
         ss.set_class(self.job_pct, "ss-text-warning", paused)
@@ -910,7 +928,12 @@ class Panel(ScreenPanel):
 
     def current_error(self):
         e = self._printer.get_stat("gcode_macro _SS_ERROR", "current")
-        return e if isinstance(e, dict) and e.get("code") else None
+        if not isinstance(e, dict) or not e.get("code"):
+            return None
+        # warnings the user chose not to see again (Settings › Hidden warnings); errors always show
+        if e.get("level") == "warn" and e["code"] in ss.get_setting("hidden_warnings", []):
+            return None
+        return e
 
     def show_error(self, e):
         warn = e.get("level") == "warn"
@@ -924,7 +947,9 @@ class Panel(ScreenPanel):
         self.err_file.set_text(ss.pretty_name(fn) if fn else "")
         # refused for this printer (outside the bed, nozzle, printer): it would be refused again
         refused = e.get("code") in ("file_bounds", "nozzle", "printer")
-        self.err_again.set_visible(bool(fn) and not warn and not refused)
+        # a warning: the button offers to stop showing this kind instead (the print went on)
+        ss.set_button_text(self.err_again, _("Don't show again") if warn else _("Print again"))
+        self.err_again.set_visible(warn or (bool(fn) and not refused))
         key = f"{e.get('code')}|{fn}|{detail}"
         if key != self.error_key:
             self.error_key = key
@@ -955,6 +980,12 @@ class Panel(ScreenPanel):
 
     def error_print_again(self, *args):
         e = self.current_error() or {}
+        if e.get("level") == "warn":
+            ss.set_setting(
+                "hidden_warnings", [*ss.get_setting("hidden_warnings", []), e.get("code")]
+            )
+            self.dismiss_error()
+            return
         ss.gcode(self._screen, "_SS_ERROR_CLEAR")
         self.error_key = None
         if e.get("file"):

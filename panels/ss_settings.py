@@ -105,9 +105,15 @@ class Panel(ScreenPanel):
 
         rows.append((ss.label(_("PRINTER"), "ss-section"), "section"))
         lock = " · " + _("locked while printing") if printing else ""
+        hidden = ss.get_setting("hidden_warnings", [])
         for name, note, cb, ok in [
             (_("Default speed"), self.speed_label(), self.pick_speed, True),
             (_("Installed nozzle"), f"{self.nozzle or 0.4} mm", self.pick_nozzle, True),
+            *(
+                [(_("Hidden warnings"), str(len(hidden)), self.show_warnings, True)]
+                if hidden
+                else []
+            ),
             (_("Wi-Fi"), "", lambda: self.open("ss_network", _("Wi-Fi")), True),
             (
                 _("Screen & language"),
@@ -176,6 +182,22 @@ class Panel(ScreenPanel):
             [(m, _(label)) for m, label in SPEEDS],
             self.default_speed or "normal",
             picked,
+        )
+
+    def show_warnings(self):
+        """Warnings hidden with "Don't show again" on Home (klipper-ui D-114)."""
+
+        def on():
+            ss.set_setting("hidden_warnings", [])
+            self.in_sub = False
+            self.build()
+
+        ss.confirm(
+            self._screen,
+            _("Show warnings again?"),
+            _('Warnings you hid with "Don\'t show again", like an uneven bed, will show again.'),
+            _("Show them"),
+            on,
         )
 
     def pick_nozzle(self):
