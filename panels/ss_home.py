@@ -32,7 +32,7 @@ class Panel(ScreenPanel):
         self.btn_busy = None  # ("pausing" | "resuming", time tapped): button locked until done
         self.speed_pending = None  # tapped speed preset not yet applied by Klipper
         self.cc = {"changes": [], "m73": []}  # color changes in the current file
-        self.phase = 0  # counts 4 s steps: the job line takes turns (time left, finish, color)
+        self.phase = False  # alternates "color change in" / time left and finish
         self.ticker = None
         self.stack = Gtk.Stack(hexpand=True, vexpand=True)
         self.stack.add_named(self.build_idle(), "idle")
@@ -587,7 +587,7 @@ class Panel(ScreenPanel):
         return any(0 <= pos - o < 400 for o in self.cc["changes"])
 
     def tick(self):
-        self.phase += 1
+        self.phase = not self.phase
         if self.stack.get_visible_child_name() == "printing":
             self.refresh_printing()
             if self.queue_notice:
@@ -654,16 +654,16 @@ class Panel(ScreenPanel):
             want = p.get_stat("gcode_macro PRINT_START", "want") or "?"
             return _("This file is for") + f" {want}"
         if stage == "bed":
-            return _("Heating bed") + f" {b_t:.0f} / {target:.0f}°"
+            return _("Heating bed") + f" {b_t:.0f}°"
         if stage in ("nozzle", "final"):
-            return _("Heating nozzle") + f" {e_t:.0f} / {target:.0f}°"
+            return _("Heating nozzle") + f" {e_t:.0f}°"
         if stage == "cool":
-            return _("Cooling nozzle") + f" {e_t:.0f} / {target:.0f}°"
+            return _("Cooling nozzle") + f" {e_t:.0f}°"
         if stage == "prep":
-            return _("Homing and cleaning the nozzle")
+            return _("Homing and cleaning")
         if stage == "soak":  # target: seconds left (klipper-ui D-096)
             left = int(target)
-            return _("Heat soaking the bed") + f" {left // 60}:{left % 60:02d}"
+            return _("Heat soak") + f" {left // 60}:{left % 60:02d}"
         return _("Measuring the bed")
 
     def time_left(self, fn, progress, dur):
@@ -675,13 +675,13 @@ class Panel(ScreenPanel):
         return estimate * (1 - progress) if estimate else None
 
     def finish_text(self, left):
-        """When the print ends: "done 3:45 PM", "done tomorrow 9:10 AM", "done Sat 9:10 AM"."""
+        """When the print ends: "finishes at 3:45 PM", "finishes tomorrow at 9:10 AM", ...Sat..."""
         end = datetime.now() + timedelta(seconds=left)
         h24 = self._config.get_main_config().getboolean("24htime", True)
         clock = end.strftime("%H:%M") if h24 else end.strftime("%I:%M %p").lstrip("0")
         days = (end.date() - datetime.now().date()).days
         day = "" if days == 0 else _("tomorrow") + " " if days == 1 else end.strftime("%a ")
-        return _("done") + f" {day}{clock}"
+        return _("finishes") + f" {day}" + _("at") + f" {clock}"
 
     def start_fraction(self, stage):
         p = self._printer
@@ -747,28 +747,20 @@ class Panel(ScreenPanel):
                 if self.runout()
                 else _("Paused")
             )
-        warn = self.current_error()  # e.g. uneven bed: the print goes on, so say it here (D-105)
-        if warn and warn.get("level") == "warn" and not starting:
-            parts.append(_("Bed uneven") + f" {warn.get('detail', '')}".rstrip())
-        if info.get("total_layer") and not starting:
-            parts.append(_("Layer") + f" {info.get('current_layer') or 0} / {info['total_layer']}")
-        # Every 4 s the next one: "X left", "done 3:45 PM", "Color change in X" (if any)
+        # Alternate every 4 s between "Color change in X" and "X left · finishes at 3:45 PM"
         eta = None if paused or starting else self.color_change_eta(fn, pos, dur)
         left = self.time_left(fn, progress, dur)
-        cycle = []
-        if left is not None:
-            cycle.append(ss.fmt_duration(left) + " " + _("left"))
-            if not paused:  # paused: nobody knows when it resumes
-                cycle.append(self.finish_text(left))
-        color_at = len(cycle)
-        if eta is not None:
+        show_color = eta is not None and self.phase
+        if show_color:
             soon = _("under 1 min") if eta < 60 else ss.fmt_duration(eta)
-            cycle.append(_("Color change in") + " " + soon)
-        show_color = False
-        if cycle:
-            step = self.phase % len(cycle)
-            show_color = eta is not None and step == color_at
-            parts.append(cycle[step])
+            parts.append(_("Color change in") + " " + soon)
+        elif left is not None:
+            parts.append(ss.fmt_duration(left) + " " + _("left"))
+            if not paused:  # paused: nobody knows when it resumes
+                parts.append(self.finish_text(left))
+        # last, so a long line cuts this off and not the times
+        if info.get("total_layer") and not starting:
+            parts.append(_("Layer") + f" {info.get('current_layer') or 0} / {info['total_layer']}")
         self.job_line.set_text(" · ".join(parts))
         ss.set_class(self.job_line, "ss-text-sky", show_color and not paused)
         self.progress.set_fraction(self.start_fraction(stage) if starting else min(1.0, progress))
