@@ -648,22 +648,30 @@ class Panel(ScreenPanel):
         e_t = p.get_stat("extruder", "temperature") or 0
         b_t = p.get_stat("heater_bed", "temperature") or 0
         if stage == "filament":
-            return _("No filament loaded: load it, or pick which one is in")
+            return _("No filament loaded")
         if stage == "material":  # klipper-ui D-106
             want = p.get_stat("gcode_macro PRINT_START", "want") or "?"
-            return _("This file is for") + f" {want}: " + _("change the filament or print anyway")
+            return _("This file is for") + f" {want}"
         if stage == "bed":
             return _("Heating bed") + f" {b_t:.0f} / {target:.0f}°"
         if stage in ("nozzle", "final"):
             return _("Heating nozzle") + f" {e_t:.0f} / {target:.0f}°"
         if stage == "cool":
-            return _("Cooling nozzle for the bed check") + f" {e_t:.0f} / {target:.0f}°"
+            return _("Cooling nozzle") + f" {e_t:.0f} / {target:.0f}°"
         if stage == "prep":
             return _("Homing and cleaning the nozzle")
         if stage == "soak":  # target: seconds left (klipper-ui D-096)
             left = int(target)
-            return _("Heat soaking the bed") + f" · {left // 60}:{left % 60:02d} " + _("left")
+            return _("Heat soaking the bed") + f" {left // 60}:{left % 60:02d}"
         return _("Measuring the bed")
+
+    def time_left(self, fn, progress, dur):
+        """Seconds of printing left. Measured once the print is under way; until then (homing,
+        heating, first 2 %) the slicer's estimate, so it always shows. None if neither is known."""
+        if progress > 0.02 and dur > 0:
+            return dur / progress - dur
+        estimate = (self._files.get_file_info(fn) or {}).get("estimated_time")
+        return estimate * (1 - progress) if estimate else None
 
     def start_fraction(self, stage):
         p = self._printer
@@ -732,15 +740,17 @@ class Panel(ScreenPanel):
         warn = self.current_error()  # e.g. uneven bed: the print goes on, so say it here (D-105)
         if warn and warn.get("level") == "warn" and not starting:
             parts.append(_("Bed uneven") + f" {warn.get('detail', '')}".rstrip())
-        if info.get("total_layer"):
+        if info.get("total_layer") and not starting:
             parts.append(_("Layer") + f" {info.get('current_layer') or 0} / {info['total_layer']}")
         # Alternate every 4 s between "Color change in X" and "X left" (files with color changes)
         eta = None if paused or starting else self.color_change_eta(fn, pos, dur)
         if eta is not None and self.phase:
             soon = _("under 1 min") if eta < 60 else ss.fmt_duration(eta)
             parts.append(_("Color change in") + " " + soon)
-        elif progress > 0.02 and dur > 0 and not starting:
-            parts.append(ss.fmt_duration(dur / progress - dur) + " " + _("left"))
+        else:
+            left = self.time_left(fn, progress, dur)
+            if left is not None:
+                parts.append(ss.fmt_duration(left) + " " + _("left"))
         self.job_line.set_text(" · ".join(parts))
         ss.set_class(self.job_line, "ss-text-sky", eta is not None and self.phase and not paused)
         self.progress.set_fraction(self.start_fraction(stage) if starting else min(1.0, progress))
