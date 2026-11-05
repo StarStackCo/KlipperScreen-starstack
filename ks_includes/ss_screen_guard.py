@@ -14,10 +14,9 @@ import logging
 
 from gi.repository import Gdk, GLib, Gtk
 
-# Shorter press-to-release is noise. 40 ms (ghosts ~24 ms) still let ghosts open the pressure
-# advance page overnight (2026-11-03), so 70 ms at the user's choice. Logged real taps were
-# 54-150 ms, so a very quick tap may need a slightly longer press.
-MIN_TOUCH_MS = 70
+# Shorter press-to-release is noise (ghosts 23-28 ms). The panel reports every 24 ms, so touches
+# last 24, 48, 72, 96 ms: this limit also drops 48 ms touches (user's choice, klipper-ui D-112).
+MIN_TOUCH_MS = 50
 HOLD_MS = 80  # wall-clock wait before a held press is passed on anyway
 REPAINT_S = 5
 
