@@ -60,6 +60,7 @@ class Panel(ScreenPanel):
         self.fil_row = Gtk.Box(spacing=8)
         page.pack_start(self.fil_row, False, False, 0)
         self.loaded = None
+        self.fil_heating = None  # set once the filament row is first built
         return page
 
     def recent_jobs(self):
@@ -237,25 +238,39 @@ class Panel(ScreenPanel):
                 img_size=16,
                 vertical=False,
             )
-        else:  # four buttons in the row: text only, or Cool falls off the screen (D-116)
+        else:  # text only: three buttons share the row (D-116)
             b = ss.button(text, css="ss-btn ss-btn-mid")
         b.connect("clicked", cb)
         return b
 
+    def heaters_on(self):
+        """Nozzle or bed has a target: the row offers Cool down instead of Preheat (D-116)."""
+        p = self._printer
+        return bool(
+            (p.get_stat("extruder", "target") or 0) > 0
+            or (p.get_stat("heater_bed", "target") or 0) > 0
+        )
+
     def _show_filament(self, material):
         self.loaded = material
+        self.fil_heating = self.heaters_on()
         for c in self.fil_row.get_children():
             self.fil_row.remove(c)
         load = lambda w: ss._push(self._screen, "ss_filament", ss_mode="load")  # noqa: E731
+        # one button that is Preheat when cold and Cool down when heating (user, D-116)
+        if self.fil_heating:
+            heat = ss.button(_("Cool down"), css="ss-btn ss-btn-outline ss-btn-mid ss-text-sky")
+            heat.connect("clicked", lambda w: ss.gcode(self._screen, "COOL_DOWN", w))
+        elif material:
+            heat = self._fil_button(
+                _("Preheat"), None, lambda w: ss.gcode(self._screen, f"PREHEAT_{material}", w)
+            )
+        else:
+            heat = None  # nothing loaded: no material to preheat for
         if material:
             self.fil_title.set_text(_("FILAMENT") + f" · {material} " + _("LOADED"))
             buttons = [
-                self._fil_button(
-                    _("Preheat"),
-                    None,
-                    lambda w: ss.gcode(self._screen, f"PREHEAT_{material}", w),
-                ),
-                # "Change filament" and Prime (klipper-ui D-116)
+                heat,
                 self._fil_button(_("Change filament"), None, load),
                 self._fil_button(
                     _("Prime"),
@@ -266,27 +281,19 @@ class Panel(ScreenPanel):
                 ),
             ]
         else:
-            # nothing remembered as loaded: no preheat guess, offer loading instead
             self.fil_title.set_text(_("FILAMENT") + " · " + _("NONE LOADED"))
-            buttons = [self._fil_button(_("Load filament"), "spool", load)]
-        four = len(buttons) > 1
-        cool = ss.button(
-            "" if four else _("Cool"),  # icon only next to three other buttons (D-116)
-            css="ss-btn ss-btn-outline ss-btn-mid ss-text-sky",
-            image="cool-down",
-            gtk=self._gtk,
-            img_size=18 if four else 16,
-            vertical=False,
-        )
-        cool.set_hexpand(False)
-        cool.set_size_request(48 if four else 88, -1)
-        cool.connect("clicked", lambda w: ss.gcode(self._screen, "COOL_DOWN", w))
+            buttons = [self._fil_button(_("Load filament"), "spool", load), heat]
         for b in buttons:
-            self.fil_row.pack_start(b, not four, True, 0)
-        if four:  # Change filament needs its full width; the short ones share what is left
-            buttons[1].set_hexpand(True)
-        self.fil_row.pack_start(cool, False, False, 0)
+            if b is not None:
+                self.fil_row.pack_start(b, True, True, 0)
         self.fil_row.show_all()
+
+    def refresh_heat_button(self):
+        """Swap Preheat / Cool down when a heater is turned on or off (from anywhere)."""
+        if self.fil_heating is None:  # row not built yet
+            return
+        if self.heaters_on() != self.fil_heating:
+            self._show_filament(self.loaded)
 
     def thumb(self, filename, size):
         frame = Gtk.Box(halign=Gtk.Align.FILL)
@@ -1059,6 +1066,8 @@ class Panel(ScreenPanel):
     def process_update(self, action, data):
         if action == "notify_status_update":
             self.update_view()
+            if "extruder" in data or "heater_bed" in data:
+                self.refresh_heat_button()
         elif action == "notify_job_queue_changed":
             ss.queue_refresh(self._screen, self.queue_changed)
         elif action == "notify_metadata_update" and data.get("filename") == self.job_file:
