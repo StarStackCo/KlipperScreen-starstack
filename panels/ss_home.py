@@ -228,9 +228,17 @@ class Panel(ScreenPanel):
         ss.query_loaded_material(self._screen, self._show_filament)
 
     def _fil_button(self, text, icon, cb):
-        b = ss.button(
-            text, css="ss-btn ss-btn-mid", image=icon, gtk=self._gtk, img_size=16, vertical=False
-        )
+        if icon:
+            b = ss.button(
+                text,
+                css="ss-btn ss-btn-mid",
+                image=icon,
+                gtk=self._gtk,
+                img_size=16,
+                vertical=False,
+            )
+        else:  # four buttons in the row: text only, or Cool falls off the screen (D-116)
+            b = ss.button(text, css="ss-btn ss-btn-mid")
         b.connect("clicked", cb)
         return b
 
@@ -244,14 +252,14 @@ class Panel(ScreenPanel):
             buttons = [
                 self._fil_button(
                     _("Preheat"),
-                    "heat-up",
+                    None,
                     lambda w: ss.gcode(self._screen, f"PREHEAT_{material}", w),
                 ),
                 # "Change filament" and Prime (klipper-ui D-116)
-                self._fil_button(_("Change filament"), "spool", load),
+                self._fil_button(_("Change filament"), None, load),
                 self._fil_button(
                     _("Prime"),
-                    "extrude",
+                    None,
                     lambda w: ss._push(
                         self._screen, "ss_filament", ss_mode="prime", ss_material=material
                     ),
@@ -261,19 +269,22 @@ class Panel(ScreenPanel):
             # nothing remembered as loaded: no preheat guess, offer loading instead
             self.fil_title.set_text(_("FILAMENT") + " · " + _("NONE LOADED"))
             buttons = [self._fil_button(_("Load filament"), "spool", load)]
+        four = len(buttons) > 1
         cool = ss.button(
-            _("Cool"),
+            "" if four else _("Cool"),  # icon only next to three other buttons (D-116)
             css="ss-btn ss-btn-outline ss-btn-mid ss-text-sky",
             image="cool-down",
             gtk=self._gtk,
-            img_size=16,
+            img_size=18 if four else 16,
             vertical=False,
         )
         cool.set_hexpand(False)
-        cool.set_size_request(88, -1)
+        cool.set_size_request(48 if four else 88, -1)
         cool.connect("clicked", lambda w: ss.gcode(self._screen, "COOL_DOWN", w))
         for b in buttons:
-            self.fil_row.pack_start(b, True, True, 0)
+            self.fil_row.pack_start(b, not four, True, 0)
+        if four:  # Change filament needs its full width; the short ones share what is left
+            buttons[1].set_hexpand(True)
         self.fil_row.pack_start(cool, False, False, 0)
         self.fil_row.show_all()
 
