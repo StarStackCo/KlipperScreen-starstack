@@ -15,8 +15,9 @@ import logging
 from gi.repository import Gdk, GLib, Gtk
 
 # Shorter press-to-release is noise (ghosts 23-28 ms). The panel reports every 24 ms, so touches
-# last 24, 48, 72, 96 ms: this limit also drops 48 ms touches (user's choice, klipper-ui D-112).
-MIN_TOUCH_MS = 50
+# last 24, 48, 72, 96 ms. 50 ms also dropped real 48 ms taps, so 45 ms: only 24 ms touches are
+# dropped (user's choice, klipper-ui D-116; was 50 in D-112).
+MIN_TOUCH_MS = 45
 HOLD_MS = 80  # wall-clock wait before a held press is passed on anyway
 REPAINT_S = 5
 
@@ -41,14 +42,28 @@ class ScreenGuard:
         Gdk.event_handler_set(self.on_event, None)
         GLib.timeout_add_seconds(REPAINT_S, self.repaint)
 
+    def asleep(self):
+        """The screensaver is up: any touch should wake the screen, so nothing is held back. A ghost
+        that wakes it does no harm, and a quick tap that didn't wake it looked broken (D-116)."""
+        saver = getattr(self.window, "screensaver", None)
+        return bool(saver and saver.is_showing)
+
     def on_event(self, event, *_args):
         kind = event.get_event_type()
+        if not self.held and kind in PRESS and self.asleep():
+            Gtk.main_do_event(event)
+            return
         if self.held:
             if kind in RELEASE:
                 ms = event.get_time() - self.held[0].get_time()
                 if ms < MIN_TOUCH_MS:
                     self.ghosts += 1
-                    logging.info(f"StarStack: ignored a ghost touch, {ms} ms (#{self.ghosts})")
+                    ok, x, y = self.held[0].get_coords()
+                    where = f" at {x:.0f},{y:.0f}" if ok else ""
+                    # where: to tell missed real taps (on buttons) from noise (D-116)
+                    logging.info(
+                        f"StarStack: ignored a ghost touch, {ms} ms{where} (#{self.ghosts})"
+                    )
                     self.drop()
                     return
                 self.flush("released")

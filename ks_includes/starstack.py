@@ -846,7 +846,14 @@ def ask_estop(screen):
 # and a heater is still on and away from its target (= a heat wait), emergency stop, then restart.
 # A normal cancel turns the heaters off as its first step, so this never fires once it is running.
 CANCEL_BACKSTOP_S = 3
-_cancel = {"since": None}
+_cancel = {"since": None, "estop_at": None}
+
+
+def cancel_estop_recent(seconds=30):
+    """The last shutdown was this backstop, not the STOP button: the stopped screen says
+    "Print canceled" instead of looking like an error (klipper-ui D-116)."""
+    at = _cancel["estop_at"]
+    return at is not None and time.monotonic() - at < seconds
 
 
 def start_stage(printer):
@@ -892,6 +899,7 @@ def cancel_print(screen):
         if waited >= CANCEL_BACKSTOP_S and heat_wait_blocking(p):
             logging.warning("StarStack: cancel stuck behind a heater wait: e-stop + restart")
             _cancel["since"] = None
+            _cancel["estop_at"] = time.monotonic()
             screen._ws.api.emergency_stop()
             GLib.timeout_add_seconds(2, restart)
             return False

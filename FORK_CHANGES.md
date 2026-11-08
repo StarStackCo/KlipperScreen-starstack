@@ -97,9 +97,9 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 25 | 2026-10-04 | `panels/ss_settings.py` | Settings + Advanced mode |
 | 26 | 2026-10-04 | `panels/ss_dialog.py`, `panels/ss_adjust.py` | In-page confirmations and value adjuster |
 | 27 | 2026-10-04 | `panels/ss_cancel_object.py` | Bed map + part list |
-| 28 | 2026-10-04 | `panels/ss_filament.py` | Guided load / unload / change filament |
+| 28 | 2026-10-04 | `panels/ss_filament.py` | Guided load / unload / change filament. 2026-11-08: Prime mode, and walk-away loading (Grab while heating, loads by itself when hot, heater off) (klipper-ui D-116) |
 | 29 | 2026-10-05 | `panels/ss_prompt.py` | In-page macro prompts (hook #9) |
-| 30 | 2026-10-05 | `panels/ss_stopped.py` | "Printer stopped / error" (hook #8) |
+| 30 | 2026-10-05 | `panels/ss_stopped.py` | "Printer stopped / error" (hook #8). 2026-11-08: says "Print canceled" when the cancel backstop stopped it (klipper-ui D-116) |
 | 31 | 2026-10-05 | `panels/ss_starting.py` | "Starting printer…" (hook #11) |
 | 32 | 2026-10-05 | `tools/starstack/` | Theme source (`style.css`, `brand/`), `build_theme.py` (pinned downloads), `check_markers.py`, `UPSTREAM_BASE` |
 | 33 | 2026-10-05 | `.github/workflows/starstack-ci.yml`, `starstack-upstream-sync.yml` | CI checks + optional monthly upstream merge PR |
@@ -117,7 +117,7 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 45 | 2026-10-06 | `panels/ss_move.py` | Move axes with fine steps, only homed axes move |
 | 46 | 2026-10-06 | `panels/ss_bed_mesh.py` | Bed mesh: colour map, Calibrate, Profile, Clear, Save (SAVE_CONFIG) |
 | 47 | 2026-10-06 | `panels/ss_shaper.py` | Input shaper: current shaper, Measure (needs accelerometer), Save |
-| 51 | 2026-10-08 | `ks_includes/ss_screen_guard.py` | Ghost touches on the resistive panel (single ~24 ms readings) are dropped: each press waits up to 80 ms and a press released in under 50 ms is ignored, and every touch passed on is logged with its length and why. A held press is only passed on when no release is waiting, and unrelated events no longer pass it on (klipper-ui D-112). Full window repaint every 5 s so SPI noise bands on the display disappear (klipper-ui D-094) |
+| 51 | 2026-10-08 | `ks_includes/ss_screen_guard.py` | Ghost touches on the resistive panel (single ~24 ms readings) are dropped: each press waits up to 80 ms and a press released in under 50 ms is ignored, and every touch passed on is logged with its length and why. A held press is only passed on when no release is waiting, and unrelated events no longer pass it on (klipper-ui D-112). Full window repaint every 5 s so SPI noise bands on the display disappear (klipper-ui D-094). 2026-11-08: limit 45 ms, any touch wakes the screensaver, ignored touches log where they landed (klipper-ui D-116) |
 | 52 | 2026-10-22 | `CLAUDE.md` | Instructions for Claude Code sessions: what the fork is, where the source of truth lives (klipper-ui docs), branch and marker rules, hazards (klipper-ui D-102) |
 | 53 | 2026-10-22 | `.claude/skills/fork-workflow/` | Claude Code skill: how to change, check, install and ship the fork, with gotchas from the decision log; `layout-checks.md`, `upstream-merge.md` (klipper-ui D-102) |
 | 54 | 2026-11-03 | `ks_includes/ss_queue.py` | Job queue list (Moonraker's queue, so Mainsail shows the same): move earlier / later / remove, next job's filament check, Not now / Print anyway / Change to X or Plate is clear, start (klipper-ui D-111). Queue helpers in `starstack.py`, styles `.ss-q*` |

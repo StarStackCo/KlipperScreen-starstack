@@ -15,7 +15,11 @@ class Panel(ScreenPanel):
     def __init__(self, screen, title, ss_kind="shutdown", ss_msg="", **kwargs):
         super().__init__(screen, title)
         msg = ss_msg or ""
-        if "webhooks request" in msg or "emergency" in msg.lower() or "M112" in msg:
+        canceled = ss.cancel_estop_recent()
+        if canceled:  # the cancel backstop, not a fault: it restarts by itself (klipper-ui D-116)
+            headline = _("Print canceled")
+            plain = _("It was waiting for a heater, so the printer restarts to stop it.")
+        elif "webhooks request" in msg or "emergency" in msg.lower() or "M112" in msg:
             headline, plain = _("Printer stopped"), _("Emergency stop was pressed.")
         elif ss_kind == "error":
             headline = _("Printer error")
@@ -31,7 +35,9 @@ class Panel(ScreenPanel):
         page.add(ss.label(plain, "ss-dialog-body ss-stopped-body", wrap=True))
         page.add(
             ss.label(
-                _("Heaters and motors are off. Check the printer is safe before restarting."),
+                _("Ready again in about 10 seconds.")
+                if canceled
+                else _("Heaters and motors are off. Check the printer is safe before restarting."),
                 "ss-muted",
                 wrap=True,
             )

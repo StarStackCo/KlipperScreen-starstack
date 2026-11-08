@@ -3,6 +3,9 @@
 #   LOAD_FILAMENT / UNLOAD_FILAMENT MATERIAL=X  → heats if cold, moves filament when hot
 #   PURGE_MORE, FILAMENT_DONE (heater off unless a print is paused)
 # The remembered material (save_variables) lets Unload start straight away.
+# klipper-ui D-116: Prime (heat, then push a little), and walk-away loading: Grab pulls the
+# filament into the gears while the nozzle heats (LOAD_FILAMENT GRAB=1), then it loads and purges
+# by itself when hot and turns the heater off (GRABBED=1 OFF=1).
 import gi
 
 gi.require_version("Gtk", "3.0")
@@ -20,7 +23,8 @@ class Panel(ScreenPanel):
         if self.change:
             ss_mode = "unload"
         self.mode = ss_mode
-        self.mat = ss_material if ss_mode == "unload" else None
+        self.mat = ss_material if ss_mode in ("unload", "prime") else None
+        self.grabbed = False  # walk-away load: filament already pulled into the gears
         self.loaded = None  # filled in asynchronously (save_variables query)
         self.checked = ss_mode != "load"  # load: material buttons only once we know nothing is in
         self.swap = False  # loading over a loaded filament: unload it first, then pick the new one
@@ -88,7 +92,7 @@ class Panel(ScreenPanel):
 
     # ---- actions
     def macro(self):
-        return "LOAD_FILAMENT" if self.mode == "load" else "UNLOAD_FILAMENT"
+        return "UNLOAD_FILAMENT" if self.mode == "unload" else "LOAD_FILAMENT"
 
     def pick(self, widget, name):
         self.mat = name
@@ -97,6 +101,7 @@ class Panel(ScreenPanel):
     def start_heat(self):
         self.step = "heat"
         self.sent_move = False
+        self.grabbed = False
         # HEAT=1: heat only. The move is sent once, when hot (unload) or when the user taps Load.
         # Without it a nozzle that was already hot (paused print) moved twice (klipper-ui D-097).
         ss.gcode(self._screen, f"{self.macro()} MATERIAL={self.mat} HEAT=1")
@@ -122,7 +127,7 @@ class Panel(ScreenPanel):
         elif self.step == "unloaded" and self.swap:  # old filament out → pick the new one
             self.swap, self.loaded, self.mat = False, None, None
             self.mode, self.step = "load", "pick"
-        elif self.step in ("purge", "unloaded"):
+        elif self.step in ("purge", "unloaded", "away"):
             ss.gcode(self._screen, "FILAMENT_DONE")
             ss.close_dialog(self._screen)
             if self.then:
@@ -133,6 +138,13 @@ class Panel(ScreenPanel):
     def alt(self, widget):
         if self.step == "purge":
             ss.gcode(self._screen, "PURGE_MORE", widget)
+        elif self.step == "heat" and self.mode == "load" and not self.grabbed:
+            ss.gcode(self._screen, f"LOAD_FILAMENT MATERIAL={self.mat} GRAB=1", widget)
+            self.grabbed = True
+            self.render()
+        elif self.step == "away":  # loaded while away, heater off: heat again and push a little
+            self.mode = "prime"
+            self.start_heat()
 
     def cancel(self, widget):
         if self.step != "pick":
@@ -145,9 +157,18 @@ class Panel(ScreenPanel):
         self.title_lbl.set_text(
             _("Change filament")
             if self.change or self.swap or (load and self.loaded)
-            else (_("Load filament") if load else _("Unload filament"))
+            else (
+                _("Prime") + f" {self.mat}"
+                if self.mode == "prime"
+                else (_("Load filament") if load else _("Unload filament"))
+            )
         )
-        steps = ["pick", "heat", "ready", "purge"] if load else ["pick", "heat", "unloaded"]
+        if self.mode == "prime":
+            steps = ["heat", "purge"]
+        elif load:
+            steps = ["pick", "heat", "away" if self.grabbed else "ready", "purge"]
+        else:
+            steps = ["pick", "heat", "unloaded"]
         cur = steps.index(self.step) if self.step in steps else 0
         for c in self.dots.get_children():
             self.dots.remove(c)
@@ -176,17 +197,44 @@ class Panel(ScreenPanel):
                     + _("It has to come out before you load a new filament.")
                 )
                 nxt = _("Unload") + f" {self.loaded}"
+        elif self.step == "heat" and self.mode == "prime":
+            txt = _("Heating the nozzle, then it pushes out a little") + f" {self.mat}."
+        elif self.step == "heat" and load and self.grabbed:
+            txt = (
+                _("Filament grabbed. You can walk away.")
+                + "\n"
+                + _("It loads and purges when the nozzle is hot, then turns the heater off.")
+            )
+        elif self.step == "heat" and load:
+            txt = (
+                _("Loading")
+                + f" {self.mat}. "
+                + _("Heating the nozzle first.")
+                + "\n"
+                + _("To walk away: push the filament in until it stops, then tap Grab.")
+            )
+            alt = _("Grab")
         elif self.step == "heat":
             txt = (
-                (_("Loading") if load else _("Unloading"))
+                _("Unloading")
                 + f" {self.mat}.\n"
                 + _("Heating the nozzle first. This takes about a minute.")
             )
+        elif self.step == "away":
+            txt = (
+                f"{self.mat} "
+                + _("is loading and purging.")
+                + "\n"
+                + _("The heater turns off when it's done. Prime pushes out more if needed.")
+            )
+            alt, nxt = _("Prime"), _("Done")
         elif self.step == "ready":
             txt = (
                 _("Nozzle is hot.")
                 + "\n"
-                + _("Push the filament into the extruder until you feel it grip, then tap Load.")
+                + _("Push the filament in until it grips, or turn the extruder gear by hand.")
+                + " "
+                + _("Then tap Load.")
             )
             nxt = _("Load")
         elif self.step == "purge":
@@ -205,12 +253,14 @@ class Panel(ScreenPanel):
                     _("Unloading…")
                     + "\n"
                     + _("When the filament is free, pull it out gently and tap Done.")
+                    + " "
+                    + _("The motor is off, so the extruder gear turns by hand.")
                 )
                 nxt = _("Done")
         self.body.set_text(txt)
         # materials only once we know nothing is in (a loaded filament must come out first)
         self.mats.set_visible(self.step == "pick" and self.checked and not (load and self.loaded))
-        self.bar_box.set_visible(self.step == "heat")
+        self.bar_box.set_visible(self.step == "heat" and not self.grabbed)
         self.alt_btn.set_visible(alt is not None)
         self.next_btn.set_visible(nxt is not None)
         if alt:
@@ -228,7 +278,13 @@ class Panel(ScreenPanel):
         self.bar.set_fraction(max(0.0, min(1.0, t / tgt)) if tgt else 0)
         if self.hot() and not self.sent_move:
             self.sent_move = True
-            if self.mode == "load":
+            if self.mode == "prime":
+                ss.gcode(self._screen, "PURGE_MORE")
+                self.step = "purge"
+            elif self.mode == "load" and self.grabbed:
+                ss.gcode(self._screen, f"LOAD_FILAMENT MATERIAL={self.mat} GRABBED=1 OFF=1")
+                self.step = "away"
+            elif self.mode == "load":
                 self.step = "ready"
             else:
                 ss.gcode(self._screen, f"UNLOAD_FILAMENT MATERIAL={self.mat}")

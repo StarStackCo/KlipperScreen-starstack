@@ -243,11 +243,19 @@ class Panel(ScreenPanel):
             self.fil_title.set_text(_("FILAMENT") + f" · {material} " + _("LOADED"))
             buttons = [
                 self._fil_button(
-                    _("Preheat") + f" {material}",
+                    _("Preheat"),
                     "heat-up",
                     lambda w: ss.gcode(self._screen, f"PREHEAT_{material}", w),
                 ),
-                self._fil_button(_("Load / Unload"), "spool", load),
+                # "Change filament" and Prime (klipper-ui D-116)
+                self._fil_button(_("Change filament"), "spool", load),
+                self._fil_button(
+                    _("Prime"),
+                    "extrude",
+                    lambda w: ss._push(
+                        self._screen, "ss_filament", ss_mode="prime", ss_material=material
+                    ),
+                ),
             ]
         else:
             # nothing remembered as loaded: no preheat guess, offer loading instead
