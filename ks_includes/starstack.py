@@ -749,23 +749,27 @@ def file_material(screen, filename):
     return next((m for m in MATERIALS if kind.startswith(m)), None)
 
 
-def bed_clear_then_print(screen, filename):
-    """Every Print button: filament check (klipper-ui D-090), then "Print this file?"."""
-    query_loaded_material(screen, lambda loaded: _check_filament(screen, filename, loaded))
+def bed_clear_then_print(screen, filename, after_print=False):
+    """Every Print button: filament check (klipper-ui D-090), then "Print this file?".
+    after_print: Print again / retry after an error, where the last part is still on the bed:
+    ask "Is the bed clear?" instead (user, D-119)."""
+    query_loaded_material(
+        screen, lambda loaded: _check_filament(screen, filename, loaded, after_print)
+    )
 
 
 def _set_loaded(screen, material):
     gcode(screen, f"SAVE_VARIABLE VARIABLE=loaded_material VALUE='\"{material}\"'")
 
 
-def _check_filament(screen, filename, loaded):
+def _check_filament(screen, filename, loaded, after_print=False):
     want = file_material(screen, filename)
-    again = lambda: bed_clear_then_print(screen, filename)  # noqa: E731  re-check after loading
+    again = lambda: bed_clear_then_print(screen, filename, after_print)  # noqa: E731  re-check
     if not loaded:
 
         def picked(material):
             _set_loaded(screen, material)
-            _check_filament(screen, filename, material)
+            _check_filament(screen, filename, material, after_print)
 
         confirm(
             screen,
@@ -793,7 +797,7 @@ def _check_filament(screen, filename, loaded):
             # tell PRINT_START too, so it doesn't ask again (klipper-ui D-106)
             lambda: (
                 gcode(screen, f"ACCEPT_MATERIAL MATERIAL={want}"),
-                _bed_clear(screen, filename),
+                _bed_clear(screen, filename, after_print),
             ),
             kind="warning",
             no_label=_("Go back"),
@@ -807,12 +811,24 @@ def _check_filament(screen, filename, loaded):
             ),
         )
     else:
-        _bed_clear(screen, filename)
+        _bed_clear(screen, filename, after_print)
 
 
-def _bed_clear(screen, filename):
-    # a file picked by hand: just "Print". The plate-clear question is only for queued jobs,
-    # which start without anyone choosing the file (user, D-119)
+def _bed_clear(screen, filename, after_print=False):
+    # a file picked by hand: just "Print". The plate-clear question is only for queued jobs and
+    # for Print again / retry, where the last part is still on the bed (user, D-119)
+    if after_print:
+        confirm(
+            screen,
+            _("Is the bed clear?"),
+            _("Remove the last print from the bed before starting")
+            + f"\n{pretty_name(filename)}.\n"
+            + _("Printing on top of a part can damage the nozzle."),
+            _("Bed is clear, print"),
+            lambda: screen._ws.api.print_start(filename),
+            no_label=_("Not yet"),
+        )
+        return
     confirm(
         screen,
         _("Print this file?"),

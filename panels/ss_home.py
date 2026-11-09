@@ -887,7 +887,7 @@ class Panel(ScreenPanel):
         again.connect(
             "clicked",
             lambda w: ss.bed_clear_then_print(
-                self._screen, self._printer.get_stat("print_stats", "filename")
+                self._screen, self._printer.get_stat("print_stats", "filename"), after_print=True
             ),
         )
         ss.grid_add(row, [done, again])
@@ -1014,7 +1014,7 @@ class Panel(ScreenPanel):
         ss.gcode(self._screen, "_SS_ERROR_CLEAR")
         self.error_key = None
         if e.get("file"):
-            ss.bed_clear_then_print(self._screen, e["file"])
+            ss.bed_clear_then_print(self._screen, e["file"], after_print=True)
 
     # ------------------------------------------------------------ common
     def update_view(self):
