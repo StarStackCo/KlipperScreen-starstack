@@ -750,7 +750,7 @@ def file_material(screen, filename):
 
 
 def bed_clear_then_print(screen, filename):
-    """Every Print button: filament check (klipper-ui D-090), then "Is the bed clear?"."""
+    """Every Print button: filament check (klipper-ui D-090), then "Print this file?"."""
     query_loaded_material(screen, lambda loaded: _check_filament(screen, filename, loaded))
 
 
@@ -811,15 +811,15 @@ def _check_filament(screen, filename, loaded):
 
 
 def _bed_clear(screen, filename):
+    # a file picked by hand: just "Print". The plate-clear question is only for queued jobs,
+    # which start without anyone choosing the file (user, D-119)
     confirm(
         screen,
-        _("Is the bed clear?"),
-        _("Remove any old print from the bed before starting")
-        + f"\n{pretty_name(filename)}.\n"
-        + _("Printing on top of a part can damage the nozzle."),
-        _("Bed is clear, print"),
+        _("Print this file?"),
+        pretty_name(filename),
+        _("Print"),
         lambda: screen._ws.api.print_start(filename),
-        no_label=_("Not yet"),
+        no_label=_("Go back"),
     )
 
 
