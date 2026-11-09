@@ -752,7 +752,7 @@ def file_material(screen, filename):
 def bed_clear_then_print(screen, filename, after_print=False):
     """Every Print button: filament check (klipper-ui D-090), then "Print this file?".
     after_print: Print again / retry after an error, where the last part is still on the bed:
-    ask "Is the bed clear?" instead (user, D-119)."""
+    ask "Is the bed clear?" instead (user, D-124)."""
     query_loaded_material(
         screen, lambda loaded: _check_filament(screen, filename, loaded, after_print)
     )
@@ -816,7 +816,7 @@ def _check_filament(screen, filename, loaded, after_print=False):
 
 def _bed_clear(screen, filename, after_print=False):
     # a file picked by hand: just "Print". The plate-clear question is only for queued jobs and
-    # for Print again / retry, where the last part is still on the bed (user, D-119)
+    # for Print again / retry, where the last part is still on the bed (user, D-124)
     if after_print:
         confirm(
             screen,

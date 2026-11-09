@@ -89,7 +89,7 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 |---|---|---|---|
 | 1 | 2026-10-04 | `FORK_CHANGES.md` | This file |
 | 3 | 2026-10-04 | `styles/starstack/` | Theme. **Generated** by `tools/starstack/build_theme.py`, never hand-edit |
-| 20 | 2026-10-04 | `ks_includes/starstack.py` | Shared helpers, materials, Advanced-mode store, in-page dialogs, **rail + STOP**, content guard (no page can push STOP off-screen), color-change scanner |
+| 20 | 2026-10-04 | `ks_includes/starstack.py` | Shared helpers, materials, Advanced-mode store, in-page dialogs, **rail + STOP**, content guard (no page can push STOP off-screen), color-change scanner; Print confirmation: just **Print** for a file picked by hand, **Is the bed clear?** for Print again and retry (klipper-ui D-124) |
 | 21 | 2026-10-04 | `ks_includes/starstack_devtools.py` | Bench test helper. **Off** unless `~/.starstack_dev` exists |
 | 22 | 2026-10-04 | `panels/ss_home.py` | Home: idle / printing / paused / done, time left and finish time on the job line, warnings only after the print and they can be hidden (klipper-ui D-114), color-change countdown, reheat-then-resume; job queue: Next up line in the job card while printing, Up next card when idle, print done with jobs waiting = queue + filament check (klipper-ui D-111) |
 | 23 | 2026-10-04 | `panels/ss_print.py` | File grid, sort, pager; while printing a tapped file is offered for the queue (klipper-ui D-111) |
