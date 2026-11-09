@@ -176,6 +176,65 @@ def history(screen, limit, on_jobs):
     )
 
 
+# ---------------------------------------------------------------- job queue (klipper-ui D-111)
+# Moonraker's own job queue, so Mainsail's Queue panel shows the same list. It never starts the
+# next job by itself (automatic_transition off): the screen starts it when the plate is clear.
+_queue = {"jobs": [], "state": ""}
+
+
+def queue_jobs():
+    """Cached queue, next job first: [{"job_id", "filename", ...}]."""
+    return _queue["jobs"]
+
+
+def _queue_got(r, done):
+    if r is not None:
+        _queue["jobs"] = r.get("queued_jobs", []) or []
+        _queue["state"] = r.get("queue_state", "")
+    if done:
+        done()
+
+
+def queue_refresh(screen, done=None):
+    request(screen, "server.job_queue.status", {}, lambda r: _queue_got(r, done))
+
+
+def queue_add(screen, filename, done=None):
+    request(
+        screen,
+        "server.job_queue.post_job",
+        {"filenames": [filename]},
+        lambda r: _queue_got(r, done),
+    )
+
+
+def queue_remove(screen, job_id, done=None):
+    request(
+        screen, "server.job_queue.delete_job", {"job_ids": [job_id]}, lambda r: _queue_got(r, done)
+    )
+
+
+def queue_move(screen, index, step, done=None):
+    """Move job `index` one place earlier (step -1) or later (+1): the queue is posted again in
+    the new order (Moonraker only has "jump to the front")."""
+    names = [j.get("filename") for j in _queue["jobs"]]
+    to = index + step
+    if not 0 <= index < len(names) or not 0 <= to < len(names):
+        return
+    names[index], names[to] = names[to], names[index]
+    request(
+        screen,
+        "server.job_queue.post_job",
+        {"filenames": names, "reset": True},
+        lambda r: _queue_got(r, done),
+    )
+
+
+def queue_start(screen):
+    """Start the next job (the user confirmed the plate is clear)."""
+    request(screen, "server.job_queue.start", {}, lambda r: _queue_got(r, None))
+
+
 def thumbnail(panel, filename, size, image):
     """Fill a Gtk.Image with the file's thumbnail asynchronously (placeholder until loaded)."""
 
@@ -685,26 +744,32 @@ def file_material(screen, filename):
     """PLA / PETG / TPU from the file's slicer metadata (e.g. "PETG;PETG" → "PETG"), else None."""
     meta = screen.files.get_file_info(filename) or {}
     kind = (meta.get("filament_type") or "").split(";")[0].strip().upper()
+    if kind == "PET":  # Orca's generic PETG preset says "PET" (klipper-ui D-113)
+        kind = "PETG"
     return next((m for m in MATERIALS if kind.startswith(m)), None)
 
 
-def bed_clear_then_print(screen, filename):
-    """Every Print button: filament check (klipper-ui D-090), then "Is the bed clear?"."""
-    query_loaded_material(screen, lambda loaded: _check_filament(screen, filename, loaded))
+def bed_clear_then_print(screen, filename, after_print=False):
+    """Every Print button: filament check (klipper-ui D-090), then "Print <name>?" (D-126).
+    after_print: Print again / retry after an error, where the last part is still on the bed:
+    ask "Is the bed clear?" instead (user, D-124)."""
+    query_loaded_material(
+        screen, lambda loaded: _check_filament(screen, filename, loaded, after_print)
+    )
 
 
 def _set_loaded(screen, material):
     gcode(screen, f"SAVE_VARIABLE VARIABLE=loaded_material VALUE='\"{material}\"'")
 
 
-def _check_filament(screen, filename, loaded):
+def _check_filament(screen, filename, loaded, after_print=False):
     want = file_material(screen, filename)
-    again = lambda: bed_clear_then_print(screen, filename)  # noqa: E731  re-check after loading
+    again = lambda: bed_clear_then_print(screen, filename, after_print)  # noqa: E731  re-check
     if not loaded:
 
         def picked(material):
             _set_loaded(screen, material)
-            _check_filament(screen, filename, material)
+            _check_filament(screen, filename, material, after_print)
 
         confirm(
             screen,
@@ -732,7 +797,7 @@ def _check_filament(screen, filename, loaded):
             # tell PRINT_START too, so it doesn't ask again (klipper-ui D-106)
             lambda: (
                 gcode(screen, f"ACCEPT_MATERIAL MATERIAL={want}"),
-                _bed_clear(screen, filename),
+                _bed_clear(screen, filename, after_print),
             ),
             kind="warning",
             no_label=_("Go back"),
@@ -746,19 +811,32 @@ def _check_filament(screen, filename, loaded):
             ),
         )
     else:
-        _bed_clear(screen, filename)
+        _bed_clear(screen, filename, after_print)
 
 
-def _bed_clear(screen, filename):
+def _bed_clear(screen, filename, after_print=False):
+    # a file picked by hand: just "Print". The plate-clear question is only for queued jobs and
+    # for Print again / retry, where the last part is still on the bed (user, D-124)
+    if after_print:
+        confirm(
+            screen,
+            _("Is the bed clear?"),
+            _("Remove the last print from the bed before starting")
+            + f"\n{pretty_name(filename)}.\n"
+            + _("Printing on top of a part can damage the nozzle."),
+            _("Bed is clear, print"),
+            lambda: screen._ws.api.print_start(filename),
+            no_label=_("Not yet"),
+        )
+        return
+    secs = (screen.files.get_file_info(filename) or {}).get("estimated_time")
     confirm(
         screen,
-        _("Is the bed clear?"),
-        _("Remove any old print from the bed before starting")
-        + f"\n{pretty_name(filename)}.\n"
-        + _("Printing on top of a part can damage the nozzle."),
-        _("Bed is clear, print"),
+        _("Print") + f" {pretty_name(filename)}?",  # the file's name, not "this file" (user, D-126)
+        " · ".join(x for x in (file_material(screen, filename), fmt_duration(secs)) if x),
+        _("Print"),
         lambda: screen._ws.api.print_start(filename),
-        no_label=_("Not yet"),
+        no_label=_("Go back"),
     )
 
 
@@ -784,8 +862,19 @@ def ask_estop(screen):
 # cancel) until the heater is at temperature. Backstop: if a cancel hasn't started 3 s after the tap
 # and a heater is still on and away from its target (= a heat wait), emergency stop, then restart.
 # A normal cancel turns the heaters off as its first step, so this never fires once it is running.
-CANCEL_BACKSTOP_S = 3
-_cancel = {"since": None}
+# 8 s, below target by more than 5°C and still warming since the tap (D-117): a normal mid-print
+# cancel parks first and can be a few degrees off after a layer temperature change; that is not a
+# heat wait and must not be e-stopped.
+CANCEL_BACKSTOP_S = 8
+HEAT_WAIT_MARGIN = 5
+_cancel = {"since": None, "estop_at": None, "temps": {}}
+
+
+def cancel_estop_recent(seconds=30):
+    """The last shutdown was this backstop, not the STOP button: the stopped screen says
+    "Print canceled" instead of looking like an error (klipper-ui D-116)."""
+    at = _cancel["estop_at"]
+    return at is not None and time.monotonic() - at < seconds
 
 
 def start_stage(printer):
@@ -799,14 +888,23 @@ def canceling():
     return _cancel["since"] is not None
 
 
-def heat_wait_blocking(printer):
-    """True if Klipper is most likely stuck in an M190/M109 wait of an old-style file."""
+def heater_temps(printer):
+    return {
+        dev: printer.get_stat(dev, "temperature") or 0
+        for dev in ["heater_bed"] + list(printer.get_tools())
+    }
+
+
+def heat_wait_blocking(printer, temps_at_tap=None):
+    """True if Klipper is most likely stuck in an M190/M109 wait of an old-style file: a heater
+    well below its target and still warming up since the cancel was tapped."""
     if printer.state != "printing" or start_stage(printer):
         return False
     for dev in ["heater_bed"] + list(printer.get_tools()):
         target = printer.get_stat(dev, "target") or 0
         temp = printer.get_stat(dev, "temperature") or 0
-        if target > 0 and abs(temp - target) > 2:
+        warming = temps_at_tap is None or temp > temps_at_tap.get(dev, temp)
+        if target > 0 and target - temp > HEAT_WAIT_MARGIN and warming:
             return True
     return False
 
@@ -814,6 +912,7 @@ def heat_wait_blocking(printer):
 def cancel_print(screen):
     started = time.monotonic()
     _cancel["since"] = started
+    _cancel["temps"] = heater_temps(screen.printer) if screen.printer else {}
     screen._ws.api.print_cancel()
 
     def restart():
@@ -828,9 +927,10 @@ def cancel_print(screen):
         if p is None or p.state not in ("printing", "paused") or waited > 120:
             _cancel["since"] = None
             return False
-        if waited >= CANCEL_BACKSTOP_S and heat_wait_blocking(p):
+        if waited >= CANCEL_BACKSTOP_S and heat_wait_blocking(p, _cancel["temps"]):
             logging.warning("StarStack: cancel stuck behind a heater wait: e-stop + restart")
             _cancel["since"] = None
+            _cancel["estop_at"] = time.monotonic()
             screen._ws.api.emergency_stop()
             GLib.timeout_add_seconds(2, restart)
             return False

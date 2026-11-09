@@ -965,6 +965,10 @@ class KlipperScreen(Gtk.ApplicationWindow):
         self.base_panel.close_update_dialog(force=True)
         # STARSTACK-CHANGE #8 BEGIN: StarStack Home replaces job_status
         if starstack.enabled(self):
+            if not self.files.files:
+                # started during a print: upstream only loads the file list when ready, so the
+                # Print page and the queue (klipper-ui D-111) would show only new files
+                self.files.refresh_files()
             self.show_panel("ss_home", remove_all=True)
             return
         # STARSTACK-CHANGE #8 END

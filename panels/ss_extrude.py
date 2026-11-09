@@ -62,7 +62,7 @@ class Panel(ScreenPanel):
         t = self._printer.get_stat("extruder", "temperature") or 0
         tgt = self._printer.get_stat("extruder", "target") or 0
         hot = t >= self.min_temp()
-        text = _("Nozzle") + f" {t:.0f}°" + (f" → {tgt:.0f}°" if tgt else "")
+        text = _("Nozzle") + f" {t:.0f}°C" + (f" → {tgt:.0f}°C" if tgt else "")
         sub = _("tap to set") if hot else _("too cold to extrude, tap to heat")
         ss.set_button_text(self.temp_btn, text, sub)
         ss.set_class(self.temp_btn, "ss-hot", not hot)

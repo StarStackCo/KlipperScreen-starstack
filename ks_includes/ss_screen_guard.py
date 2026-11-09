@@ -14,7 +14,10 @@ import logging
 
 from gi.repository import Gdk, GLib, Gtk
 
-MIN_TOUCH_MS = 40  # shorter press-to-release is noise (ghosts ~24 ms, shortest real ~48 ms)
+# Shorter press-to-release is noise (ghosts 23-28 ms). The panel reports every 24 ms, so touches
+# last 24, 48, 72, 96 ms. 50 ms also dropped real 48 ms taps, so 45 ms: only 24 ms touches are
+# dropped (user's choice, klipper-ui D-116; was 50 in D-112).
+MIN_TOUCH_MS = 45
 HOLD_MS = 80  # wall-clock wait before a held press is passed on anyway
 REPAINT_S = 5
 
@@ -34,33 +37,76 @@ class ScreenGuard:
         self.held = []  # the press being checked plus anything after it, as copies
         self.timer = None
         self.ghosts = 0
+        self.pressed_at = None  # event time of the last press passed on, for log_touch
+        self.passed_by = ""  # why it was passed on
         Gdk.event_handler_set(self.on_event, None)
         GLib.timeout_add_seconds(REPAINT_S, self.repaint)
 
+    def asleep(self):
+        """The screensaver is up: any touch should wake the screen, so nothing is held back. A ghost
+        that wakes it does no harm, and a quick tap that didn't wake it looked broken (D-116)."""
+        saver = getattr(self.window, "screensaver", None)
+        return bool(saver and saver.is_showing)
+
     def on_event(self, event, *_args):
         kind = event.get_event_type()
+        if not self.held and kind in PRESS and self.asleep():
+            Gtk.main_do_event(event)
+            return
         if self.held:
             if kind in RELEASE:
-                if event.get_time() - self.held[0].get_time() < MIN_TOUCH_MS:
+                ms = event.get_time() - self.held[0].get_time()
+                if ms < MIN_TOUCH_MS:
                     self.ghosts += 1
-                    logging.info(f"StarStack: ignored a ghost touch ({self.ghosts} so far)")
+                    ok, x, y = self.held[0].get_coords()
+                    where = f" at {x:.0f},{y:.0f}" if ok else ""
+                    # where: to tell missed real taps (on buttons) from noise (D-116)
+                    logging.info(
+                        f"StarStack: ignored a ghost touch, {ms} ms{where} (#{self.ghosts})"
+                    )
                     self.drop()
                     return
-                self.flush()
+                self.flush("released")
             elif kind in FOLLOW:
                 self.held.append(event.copy())
                 return
+            elif kind in PRESS:
+                self.flush("second press")
             else:
-                self.flush()
+                # anything else (window crossing, focus, ...) says nothing about this touch, and
+                # used to pass the held press on: 24 ms ghosts opened pages that way (2026-11-05)
+                Gtk.main_do_event(event)
+                return
         elif kind in PRESS:
             self.held = [event.copy()]
-            self.timer = GLib.timeout_add(HOLD_MS, self.held_long_enough)
+            self.timer = GLib.timeout_add(
+                HOLD_MS, self.held_long_enough, priority=GLib.PRIORITY_LOW
+            )
             return
+        if kind in RELEASE:
+            self.log_touch(event)
         Gtk.main_do_event(event)
 
+    def log_touch(self, event):
+        """A touch that was passed on: how long and where, so a ghost that still gets through can
+        be told from a real tap in the log (klipper-ui D-094)."""
+        if self.pressed_at is None:
+            return
+        ms = event.get_time() - self.pressed_at
+        ok, x, y = event.get_coords()
+        where = f" at {x:.0f},{y:.0f}" if ok else ""
+        logging.info(f"StarStack: touch {ms} ms{where} ({self.passed_by})")
+        self.pressed_at = None
+
     def held_long_enough(self):
+        """The wait is over by the clock, but a release may already be waiting: the screen updates
+        can hold events back for longer than HOLD_MS. Look before passing the press on."""
         self.timer = None  # this timeout ends here (returns False)
-        return self.flush()
+        Gdk.Display.get_default().sync()
+        if Gdk.events_pending():
+            self.timer = GLib.timeout_add(5, self.held_long_enough, priority=GLib.PRIORITY_LOW)
+            return False
+        return self.flush("held")
 
     def drop(self):
         if self.timer:
@@ -68,8 +114,10 @@ class ScreenGuard:
             self.timer = None
         self.held = []
 
-    def flush(self):
+    def flush(self, why):
         held, self.held = self.held, []
+        if held:
+            self.pressed_at, self.passed_by = held[0].get_time(), why
         if self.timer:
             GLib.source_remove(self.timer)
             self.timer = None

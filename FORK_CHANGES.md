@@ -82,30 +82,31 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 48 | 2026-10-08 | `screen.py` `set_titlebar_items` | The nozzle/bed temperatures in the top bar show on the StarStack pages again. Upstream (since the v0.4.7 merge, D-060) only shows them on its own `main_menu` / `job_status`, so they had disappeared; the boot cover (`ss_starting`) still hides them |
 | 49 | 2026-10-08 | `screen.py` `ws_subscribe` | Also subscribes to `gcode_macro PRINT_START` (`stage`, `target`, `soak`: heat soak D-096, `want`: the file's material D-106) and `gcode_macro _SS_ERROR` (`current`: error card on Home, D-105): while the start of a print heats up the file is paused in the background (klipper-ui D-089), and Home shows "Heating bed 40/60°" instead of "Paused" |
 | 50 | 2026-10-08 | `screen.py` (imports, after the first `show_all`) | Starts the screen guard (row 51): ghost-touch filter and a full repaint every 5 s (klipper-ui D-094) |
+| 56 | 2026-11-05 | `panels/base_panel.py` `process_update` | Title bar temperatures with their unit, 60°C (klipper-ui D-114) |
 
 ### Files we added (never conflict)
 | # | Date | Files | What |
 |---|---|---|---|
 | 1 | 2026-10-04 | `FORK_CHANGES.md` | This file |
 | 3 | 2026-10-04 | `styles/starstack/` | Theme. **Generated** by `tools/starstack/build_theme.py`, never hand-edit |
-| 20 | 2026-10-04 | `ks_includes/starstack.py` | Shared helpers, materials, Advanced-mode store, in-page dialogs, **rail + STOP**, content guard (no page can push STOP off-screen), color-change scanner |
+| 20 | 2026-10-04 | `ks_includes/starstack.py` | Shared helpers, materials, Advanced-mode store, in-page dialogs, **rail + STOP**, content guard (no page can push STOP off-screen), color-change scanner; Print confirmation: **Print <file name>?** with material and time for a file picked by hand (klipper-ui D-124, D-126), **Is the bed clear?** for Print again and retry (klipper-ui D-124) |
 | 21 | 2026-10-04 | `ks_includes/starstack_devtools.py` | Bench test helper. **Off** unless `~/.starstack_dev` exists |
-| 22 | 2026-10-04 | `panels/ss_home.py` | Home: idle / printing / paused / done, color-change countdown, reheat-then-resume |
-| 23 | 2026-10-04 | `panels/ss_print.py` | File grid, sort, pager |
+| 22 | 2026-10-04 | `panels/ss_home.py` | Home: idle / printing / paused / done, time left and finish time on the job line, warnings only after the print and they can be hidden (klipper-ui D-114), color-change countdown, reheat-then-resume; job queue: Next up line in the job card while printing, Up next card when idle, print done with jobs waiting = queue + filament check (klipper-ui D-111). 2026-11-09: Change filament starts the unload at once (klipper-ui D-126) |
+| 23 | 2026-10-04 | `panels/ss_print.py` | File grid, sort, pager; while printing a tapped file is offered for the queue (klipper-ui D-111) |
 | 24 | 2026-10-04 | `panels/ss_controls.py` | Temps, fan, filament (remembered), movement (locked while printing) |
 | 25 | 2026-10-04 | `panels/ss_settings.py` | Settings + Advanced mode |
 | 26 | 2026-10-04 | `panels/ss_dialog.py`, `panels/ss_adjust.py` | In-page confirmations and value adjuster |
 | 27 | 2026-10-04 | `panels/ss_cancel_object.py` | Bed map + part list |
-| 28 | 2026-10-04 | `panels/ss_filament.py` | Guided load / unload / change filament |
+| 28 | 2026-10-04 | `panels/ss_filament.py` | Guided load / unload / change filament. 2026-11-08: Prime mode, and walk-away loading (Grab while heating, loads by itself when hot, heater off) (klipper-ui D-116). 2026-11-08: heater timeout shown with Heat again, Unloaded state, change with nothing loaded goes to loading (klipper-ui D-117). 2026-11-09: `swap` mode for Home's Change filament: unloads at once, then asks for the new one (klipper-ui D-126) |
 | 29 | 2026-10-05 | `panels/ss_prompt.py` | In-page macro prompts (hook #9) |
-| 30 | 2026-10-05 | `panels/ss_stopped.py` | "Printer stopped / error" (hook #8) |
+| 30 | 2026-10-05 | `panels/ss_stopped.py` | "Printer stopped / error" (hook #8). 2026-11-08: says "Print canceled" when the cancel backstop stopped it (klipper-ui D-116) |
 | 31 | 2026-10-05 | `panels/ss_starting.py` | "Starting printer…" (hook #11) |
 | 32 | 2026-10-05 | `tools/starstack/` | Theme source (`style.css`, `brand/`), `build_theme.py` (pinned downloads), `check_markers.py`, `UPSTREAM_BASE` |
 | 33 | 2026-10-05 | `.github/workflows/starstack-ci.yml`, `starstack-upstream-sync.yml` | CI checks + optional monthly upstream merge PR |
 | 34 | 2026-10-05 | `TRADEMARKS.md` | StarStack name/logo are not covered by the AGPL license |
 | 35 | 2026-10-05 | `panels/ss_console.py` | Console with the command box at the top (stock one has it at the bottom edge); opened from Settings › Advanced |
 | 36 | 2026-10-05 | `panels/ss_network.py` | StarStack Wi-Fi page (klipper-ui B-6): one row per network, tap to connect, password with the StarStack keyboard, Disconnect/Forget in `ss_dialog` (now with an optional third button). Upstream's `sdbus_nm` backend unchanged; enterprise Wi-Fi via the stock page |
-| 37 | 2026-10-05 | `panels/ss_usb.py` | "USB stick: N new files copied" prompt with "Print this one now?" for the newest file (klipper-ui D-065). Opened by `StarStackRail` when klipper-ui's USB import writes `gcodes/.starstack/usb_import.json` |
+| 37 | 2026-10-05 | `panels/ss_usb.py` | "USB stick: N new files copied" prompt with "Print this one now?" for the newest file (klipper-ui D-065), or "Add to queue" while printing (D-111). Opened by `StarStackRail` when klipper-ui's USB import writes `gcodes/.starstack/usb_import.json` |
 | 38 | 2026-10-06 | `panels/ss_choose.py` | Generic "pick one" page (`ss.choose()`), pages with arrows |
 | 39 | 2026-10-06 | `panels/ss_screen.py` | Screen & language (replaces stock settings): screen sleep, sleep while printing, 24 h clock, language, **Confirm emergency stop** (StarStack setting, default ON, used by the STOP button) |
 | 40 | 2026-10-06 | `panels/ss_about.py` | About this printer (replaces stock system panel) |
@@ -116,6 +117,8 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 45 | 2026-10-06 | `panels/ss_move.py` | Move axes with fine steps, only homed axes move |
 | 46 | 2026-10-06 | `panels/ss_bed_mesh.py` | Bed mesh: colour map, Calibrate, Profile, Clear, Save (SAVE_CONFIG) |
 | 47 | 2026-10-06 | `panels/ss_shaper.py` | Input shaper: current shaper, Measure (needs accelerometer), Save |
-| 51 | 2026-10-08 | `ks_includes/ss_screen_guard.py` | Ghost touches on the resistive panel (single ~24 ms readings) are dropped: each press waits up to 80 ms and a press released in under 40 ms is ignored. Full window repaint every 5 s so SPI noise bands on the display disappear (klipper-ui D-094) |
+| 51 | 2026-10-08 | `ks_includes/ss_screen_guard.py` | Ghost touches on the resistive panel (single ~24 ms readings) are dropped: each press waits up to 80 ms and a press released in under 50 ms is ignored, and every touch passed on is logged with its length and why. A held press is only passed on when no release is waiting, and unrelated events no longer pass it on (klipper-ui D-112). Full window repaint every 5 s so SPI noise bands on the display disappear (klipper-ui D-094). 2026-11-08: limit 45 ms, any touch wakes the screensaver, ignored touches log where they landed (klipper-ui D-116) |
 | 52 | 2026-10-22 | `CLAUDE.md` | Instructions for Claude Code sessions: what the fork is, where the source of truth lives (klipper-ui docs), branch and marker rules, hazards (klipper-ui D-102) |
 | 53 | 2026-10-22 | `.claude/skills/fork-workflow/` | Claude Code skill: how to change, check, install and ship the fork, with gotchas from the decision log; `layout-checks.md`, `upstream-merge.md` (klipper-ui D-102) |
+| 54 | 2026-11-03 | `ks_includes/ss_queue.py` | Job queue list (Moonraker's queue, so Mainsail shows the same): move earlier / later / remove, next job's filament check, Not now / Print anyway / Change to X or Plate is clear, start (klipper-ui D-111). Queue helpers in `starstack.py`, styles `.ss-q*` |
+| 55 | 2026-11-03 | `panels/ss_queue.py` | Queue page, opened from Home (klipper-ui D-111) |

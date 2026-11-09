@@ -541,6 +541,11 @@ class BasePanel(ScreenPanel):
                     elif self.titlebar_name_type == "short":
                         name = device.split()[1] if len(device.split()) > 1 else device
                         name = f"{name[:1].upper()}: "
+                # STARSTACK-CHANGE #56 BEGIN: temperatures always show their unit (klipper-ui D-114)
+                if starstack.enabled(self._screen):
+                    self.titlebar_labels[device].set_label(f"{name}{temp:.0f}°C")
+                    continue
+                # STARSTACK-CHANGE #56 END
                 self.titlebar_labels[device].set_label(f"{name}{temp:.0f}°")
 
         if (

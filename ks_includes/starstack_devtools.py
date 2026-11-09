@@ -77,7 +77,7 @@ def _run(screen, cmd):
         roots.append(screen.base_panel.main_grid)  # dialogs on top are searched first
         for b in [b for r in roots for b in _buttons(r)]:
             texts = _labels(b)
-            if arg in texts or (b.get_tooltip_text() == arg):
+            if arg in texts or arg in (b.get_tooltip_text(), b.get_name()):  # name: icon buttons
                 b.clicked()
                 return f"ok click {arg}"
         return f"not found: {arg} | panels: {' > '.join(screen._cur_panels)}"

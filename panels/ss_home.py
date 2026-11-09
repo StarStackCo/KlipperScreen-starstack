@@ -5,6 +5,7 @@ import logging
 import os
 import threading
 import time
+from datetime import datetime, timedelta
 
 import gi
 
@@ -13,8 +14,12 @@ from gi.repository import GLib, Gtk
 
 from ks_includes import starstack as ss
 from ks_includes.screen_panel import ScreenPanel
+from ks_includes.ss_queue import QueueView
 
 THUMB = 56
+
+
+OUTER_BTN_W = 104  # home filament row: Preheat / Cool down and Prime (D-117)
 
 
 class Panel(ScreenPanel):
@@ -30,13 +35,16 @@ class Panel(ScreenPanel):
         self.btn_busy = None  # ("pausing" | "resuming", time tapped): button locked until done
         self.speed_pending = None  # tapped speed preset not yet applied by Klipper
         self.cc = {"changes": [], "m73": []}  # color changes in the current file
-        self.phase = False  # alternates "color change in" / "time left"
+        self.phase = False  # alternates "color change in" / time left and finish
         self.ticker = None
         self.stack = Gtk.Stack(hexpand=True, vexpand=True)
         self.stack.add_named(self.build_idle(), "idle")
         self.stack.add_named(self.build_printing(), "printing")
         self.stack.add_named(self.build_done(), "done")
+        self.stack.add_named(self.build_done_queue(), "done_queue")
         self.stack.add_named(self.build_error(), "error")
+        self.queue_names = None  # queued file names last seen, to announce new ones
+        self.queue_notice = None  # (text, until): a job just added, shown on the Next up strip
         self.error_key = None  # error shown; Klipper's own message is fetched once per error
         self.content.add(self.stack)
         self.content.show_all()
@@ -55,6 +63,7 @@ class Panel(ScreenPanel):
         self.fil_row = Gtk.Box(spacing=8)
         page.pack_start(self.fil_row, False, False, 0)
         self.loaded = None
+        self.fil_heating = None  # set once the filament row is first built
         return page
 
     def recent_jobs(self):
@@ -104,7 +113,12 @@ class Panel(ScreenPanel):
             self.build_get_started()
         else:
             newest = own[0] if own else history[0]
-            self.idle_box.add(self.newest_card(newest))
+            queued = ss.queue_jobs()
+            if queued:  # jobs wait in the queue: they come first (klipper-ui D-111)
+                newest = queued[0]["filename"]
+                self.idle_box.add(self.queue_card(newest, len(queued)))
+            else:
+                self.idle_box.add(self.newest_card(newest))
             again = [f for f in history if f != newest]
             again += [f for f in own if f != newest and f not in again]
             if again:
@@ -138,6 +152,31 @@ class Panel(ScreenPanel):
         info.pack_start(Gtk.Box(vexpand=True), True, True, 0)
         go = ss.button(_("Print"), css="ss-btn ss-btn-primary ss-btn-mid")
         go.connect("clicked", lambda w: ss.bed_clear_then_print(self._screen, fn))
+        info.add(go)
+        card.pack_start(info, True, True, 0)
+        return card
+
+    def queue_card(self, fn, count):
+        """Idle with jobs in the queue: the next one, and the Queue page to start it."""
+        card = Gtk.Box(spacing=10)
+        card.get_style_context().add_class("ss-card")
+        card.get_style_context().add_class("ss-card-hl")
+        t = self.thumb(fn, 72)
+        t.set_size_request(72, 72)
+        card.pack_start(t, False, False, 0)
+        info = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        info.add(
+            ss.section(
+                _("Up next")
+                + " · "
+                + (_("1 in the queue") if count == 1 else f"{count} " + _("in the queue"))
+            )
+        )
+        info.add(ss.label(ss.pretty_name(fn), "ss-card-title", ellipsize=True))
+        info.add(ss.label(self.file_sub(fn), "ss-btn-sub", ellipsize=True))
+        info.pack_start(Gtk.Box(vexpand=True), True, True, 0)
+        go = ss.button(_("Open queue"), css="ss-btn ss-btn-primary ss-btn-mid")
+        go.connect("clicked", lambda w: self._screen.show_panel("ss_queue"))
         info.add(go)
         card.pack_start(info, True, True, 0)
         return card
@@ -193,46 +232,86 @@ class Panel(ScreenPanel):
         ss.query_loaded_material(self._screen, self._show_filament)
 
     def _fil_button(self, text, icon, cb):
-        b = ss.button(
-            text, css="ss-btn ss-btn-mid", image=icon, gtk=self._gtk, img_size=16, vertical=False
-        )
+        if icon:
+            b = ss.button(
+                text,
+                css="ss-btn ss-btn-mid",
+                image=icon,
+                gtk=self._gtk,
+                img_size=16,
+                vertical=False,
+            )
+        else:  # text only: three buttons share the row (D-116)
+            b = ss.button(text, css="ss-btn ss-btn-mid")
         b.connect("clicked", cb)
         return b
 
+    def heaters_on(self):
+        """Nozzle or bed has a target: the row offers Cool down instead of Preheat (D-116)."""
+        p = self._printer
+        return bool(
+            (p.get_stat("extruder", "target") or 0) > 0
+            or (p.get_stat("heater_bed", "target") or 0) > 0
+        )
+
     def _show_filament(self, material):
         self.loaded = material
+        self.fil_heating = self.heaters_on()
         for c in self.fil_row.get_children():
             self.fil_row.remove(c)
         load = lambda w: ss._push(self._screen, "ss_filament", ss_mode="load")  # noqa: E731
+        # one button that is Preheat when cold and Cool down when heating (user, D-116)
+        if self.fil_heating:
+            heat = ss.button(_("Cool down"), css="ss-btn ss-btn-outline ss-btn-mid ss-text-sky")
+            heat.connect("clicked", lambda w: ss.gcode(self._screen, "COOL_DOWN", w))
+        elif material:
+            heat = self._fil_button(
+                _("Preheat"), None, lambda w: ss.gcode(self._screen, f"PREHEAT_{material}", w)
+            )
+        else:
+            heat = None  # nothing loaded: no material to preheat for
         if material:
             self.fil_title.set_text(_("FILAMENT") + f" · {material} " + _("LOADED"))
             buttons = [
+                heat,
                 self._fil_button(
-                    _("Preheat") + f" {material}",
-                    "heat-up",
-                    lambda w: ss.gcode(self._screen, f"PREHEAT_{material}", w),
+                    _("Change filament"),
+                    None,
+                    # starts unloading at once, then asks for the new one (user, klipper-ui D-126)
+                    lambda w: ss._push(
+                        self._screen, "ss_filament", ss_mode="swap", ss_material=material
+                    ),
                 ),
-                self._fil_button(_("Load / Unload"), "spool", load),
+                self._fil_button(
+                    _("Prime"),
+                    None,
+                    lambda w: ss._push(
+                        self._screen, "ss_filament", ss_mode="prime", ss_material=material
+                    ),
+                ),
             ]
         else:
-            # nothing remembered as loaded: no preheat guess, offer loading instead
             self.fil_title.set_text(_("FILAMENT") + " · " + _("NONE LOADED"))
-            buttons = [self._fil_button(_("Load filament"), "spool", load)]
-        cool = ss.button(
-            _("Cool"),
-            css="ss-btn ss-btn-outline ss-btn-mid ss-text-sky",
-            image="cool-down",
-            gtk=self._gtk,
-            img_size=16,
-            vertical=False,
-        )
-        cool.set_hexpand(False)
-        cool.set_size_request(88, -1)
-        cool.connect("clicked", lambda w: ss.gcode(self._screen, "COOL_DOWN", w))
+            buttons = [self._fil_button(_("Load filament"), "spool", load), heat]
+        # the outer buttons have one fixed width, the middle one takes the rest: nothing moves when
+        # Preheat becomes Cool down, and Change filament keeps room for its label (user, D-117)
+        self.fil_row.set_homogeneous(False)
         for b in buttons:
-            self.fil_row.pack_start(b, True, True, 0)
-        self.fil_row.pack_start(cool, False, False, 0)
+            if b is None:
+                continue
+            fixed = b is heat or (material and b is buttons[-1])
+            if fixed:
+                b.set_hexpand(False)
+                b.set_size_request(OUTER_BTN_W, -1)
+            self.fil_row.pack_start(b, not fixed, True, 0)
         self.fil_row.show_all()
+
+    def refresh_heat_button(self):
+        """Swap Preheat / Cool down when a heater is turned on or off (from anywhere)."""
+        if self.fil_heating is None:  # row not built yet
+            return
+        if self.heaters_on() != self.fil_heating:
+            self._show_filament(self.loaded)
 
     def thumb(self, filename, size):
         frame = Gtk.Box(halign=Gtk.Align.FILL)
@@ -258,10 +337,19 @@ class Panel(ScreenPanel):
         mid.add(self.job_name)
         mid.add(self.job_line)
         mid.add(self.progress)
+        # Next up line (klipper-ui D-111): the next queued job, or for 10 s after a job was added
+        # (e.g. "Upload and print" in Orca while printing) which one and where. Tapping the card
+        # opens the queue. In the card: the page has no height left for a strip of its own.
+        self.next_line = ss.label("", "ss-btn-sub ss-qnext", ellipsize=True)
+        self.next_line.set_no_show_all(True)
+        mid.add(self.next_line)
         card.pack_start(mid, True, True, 0)
         self.job_pct = ss.label("0%", "ss-pct", xalign=1.0)
         card.pack_end(self.job_pct, False, False, 0)
-        page.add(card)
+        card_tap = Gtk.EventBox()
+        card_tap.add(card)
+        card_tap.connect("button-release-event", self.open_queue)
+        page.add(card_tap)
 
         speeds = ss.grid(4)
         self.speed_btns = {}
@@ -289,6 +377,51 @@ class Panel(ScreenPanel):
         page.add(actions)
         self.job_file = None
         return page
+
+    def open_queue(self, *args):
+        if ss.queue_jobs():
+            self._screen.show_panel("ss_queue")
+
+    def refresh_next_strip(self):
+        jobs = ss.queue_jobs()
+        notice = self.queue_notice
+        if notice and time.time() > notice[1]:
+            notice = self.queue_notice = None
+        if notice:
+            self.next_line.set_text(notice[0])
+        elif jobs:
+            more = len(jobs) - 1
+            self.next_line.set_text(
+                _("Next up:")
+                + f" {ss.pretty_name(jobs[0]['filename'])}"
+                + (f" · +{more} " + _("more") if more else "")
+                + "  ›"
+            )
+        ss.set_class(self.next_line, "ss-qnext-new", bool(notice))
+        self.next_line.set_visible(bool(jobs or notice))
+
+    def queue_changed(self):
+        """The queue changed (here, in Mainsail or from an Orca upload): redraw what shows it,
+        and announce a job that was just added."""
+        names = [j.get("filename") for j in ss.queue_jobs()]
+        old = self.queue_names
+        self.queue_names = names
+        if old is not None:
+            added = [n for n in names if n not in old]
+            if added:
+                pos = names.index(added[-1]) + 1
+                self.queue_notice = (
+                    f"{ss.pretty_name(added[-1])} " + _("added to the queue") + f" (#{pos})",
+                    time.time() + 10,
+                )
+        self.refresh_next_strip()
+        shown = self.stack.get_visible_child_name()
+        if shown in ("done", "done_queue"):
+            self.update_view()
+            if self.stack.get_visible_child_name() == "done_queue":
+                self.done_queue.refresh()
+        elif shown == "idle":
+            self.refresh_idle()
 
     def pick_speed(self, widget, pct, macro):
         """Highlight the tapped preset immediately; it applies as soon as Klipper is free
@@ -501,6 +634,8 @@ class Panel(ScreenPanel):
         self.phase = not self.phase
         if self.stack.get_visible_child_name() == "printing":
             self.refresh_printing()
+            if self.queue_notice:
+                self.refresh_next_strip()  # the "added" notice ends after 10 s
         return True
 
     def runout(self):
@@ -558,22 +693,39 @@ class Panel(ScreenPanel):
         e_t = p.get_stat("extruder", "temperature") or 0
         b_t = p.get_stat("heater_bed", "temperature") or 0
         if stage == "filament":
-            return _("No filament loaded: load it, or pick which one is in")
+            return _("No filament loaded")
         if stage == "material":  # klipper-ui D-106
             want = p.get_stat("gcode_macro PRINT_START", "want") or "?"
-            return _("This file is for") + f" {want}: " + _("change the filament or print anyway")
+            return _("This file is for") + f" {want}"
         if stage == "bed":
-            return _("Heating bed") + f" {b_t:.0f} / {target:.0f}°"
+            return _("Heating bed") + f" {b_t:.0f}°C"
         if stage in ("nozzle", "final"):
-            return _("Heating nozzle") + f" {e_t:.0f} / {target:.0f}°"
+            return _("Heating nozzle") + f" {e_t:.0f}°C"
         if stage == "cool":
-            return _("Cooling nozzle for the bed check") + f" {e_t:.0f} / {target:.0f}°"
+            return _("Cooling nozzle") + f" {e_t:.0f}°C"
         if stage == "prep":
-            return _("Homing and cleaning the nozzle")
+            return _("Homing and cleaning")
         if stage == "soak":  # target: seconds left (klipper-ui D-096)
             left = int(target)
-            return _("Heat soaking the bed") + f" · {left // 60}:{left % 60:02d} " + _("left")
+            return _("Heat soak") + f" {left // 60}:{left % 60:02d}"
         return _("Measuring the bed")
+
+    def time_left(self, fn, progress, dur):
+        """Seconds of printing left. Measured once the print is under way; until then (homing,
+        heating, first 2 %) the slicer's estimate, so it always shows. None if neither is known."""
+        if progress > 0.02 and dur > 0:
+            return dur / progress - dur
+        estimate = (self._files.get_file_info(fn) or {}).get("estimated_time")
+        return estimate * (1 - progress) if estimate else None
+
+    def finish_text(self, left):
+        """When the print ends: "finishes at 3:45 PM", "finishes tomorrow at 9:10 AM", ...Sat..."""
+        end = datetime.now() + timedelta(seconds=left)
+        h24 = self._config.get_main_config().getboolean("24htime", True)
+        clock = end.strftime("%H:%M") if h24 else end.strftime("%I:%M %p").lstrip("0")
+        days = (end.date() - datetime.now().date()).days
+        day = "" if days == 0 else _("tomorrow") + " " if days == 1 else end.strftime("%a ")
+        return _("finishes") + f" {day}" + _("at") + f" {clock}"
 
     def start_fraction(self, stage):
         p = self._printer
@@ -622,7 +774,6 @@ class Panel(ScreenPanel):
             or p.get_stat("print_stats", "total_duration")
             or 0
         )
-        info = p.get_stat("print_stats", "info") or {}
         color_pause = paused and self.color_change_pause(pos)
         parts = []
         if canceling:
@@ -630,7 +781,7 @@ class Panel(ScreenPanel):
         elif starting:
             parts.append(self.start_text(stage))
         elif self.resume_at:
-            parts.append(_("Reheating to") + f" {self.resume_at:.0f}°, " + _("then resuming"))
+            parts.append(_("Reheating to") + f" {self.resume_at:.0f}°C, " + _("then resuming"))
         elif paused:
             parts.append(
                 _("Color change")
@@ -639,20 +790,19 @@ class Panel(ScreenPanel):
                 if self.runout()
                 else _("Paused")
             )
-        warn = self.current_error()  # e.g. uneven bed: the print goes on, so say it here (D-105)
-        if warn and warn.get("level") == "warn" and not starting:
-            parts.append(_("Bed uneven") + f" {warn.get('detail', '')}".rstrip())
-        if info.get("total_layer"):
-            parts.append(_("Layer") + f" {info.get('current_layer') or 0} / {info['total_layer']}")
-        # Alternate every 4 s between "Color change in X" and "X left" (files with color changes)
+        # Alternate every 4 s between "Color change in X" and "X left · finishes at 3:45 PM"
         eta = None if paused or starting else self.color_change_eta(fn, pos, dur)
-        if eta is not None and self.phase:
+        left = self.time_left(fn, progress, dur)
+        show_color = eta is not None and self.phase
+        if show_color:
             soon = _("under 1 min") if eta < 60 else ss.fmt_duration(eta)
             parts.append(_("Color change in") + " " + soon)
-        elif progress > 0.02 and dur > 0 and not starting:
-            parts.append(ss.fmt_duration(dur / progress - dur) + " " + _("left"))
+        elif left is not None:
+            parts.append(ss.fmt_duration(left) + " " + _("left"))
+            if not paused:  # paused: nobody knows when it resumes
+                parts.append(self.finish_text(left))
         self.job_line.set_text(" · ".join(parts))
-        ss.set_class(self.job_line, "ss-text-sky", eta is not None and self.phase and not paused)
+        ss.set_class(self.job_line, "ss-text-sky", show_color and not paused)
         self.progress.set_fraction(self.start_fraction(stage) if starting else min(1.0, progress))
         self.job_pct.set_text("" if starting else f"{int(progress * 100)}%")
         ss.set_class(self.job_pct, "ss-text-warning", paused)
@@ -699,8 +849,8 @@ class Panel(ScreenPanel):
                 p.get_stat("heater_bed", "target") or 0,
             )
             vals = {
-                "nozzle": (f"{e_t:.0f}°", f"/ {e_g:.0f}°"),
-                "bed": (f"{b_t:.0f}°", f"/ {b_g:.0f}°"),
+                "nozzle": (f"{e_t:.0f}°C", f"/ {e_g:.0f}°C"),
+                "bed": (f"{b_t:.0f}°C", f"/ {b_g:.0f}°C"),
                 "fan": (f"{(p.get_stat('fan', 'speed') or 0) * 100:.0f}%", _("part")),
                 "flow": (
                     f"{(p.get_stat('gcode_move', 'extrude_factor') or 1) * 100:.0f}%",
@@ -744,11 +894,24 @@ class Panel(ScreenPanel):
         again.connect(
             "clicked",
             lambda w: ss.bed_clear_then_print(
-                self._screen, self._printer.get_stat("print_stats", "filename")
+                self._screen, self._printer.get_stat("print_stats", "filename"), after_print=True
             ),
         )
         ss.grid_add(row, [done, again])
         page.add(row)
+        return page
+
+    def build_done_queue(self):
+        """Print finished and jobs wait (design "A4", klipper-ui D-111): clear the plate, reorder,
+        and the next job's filament is checked before it can start."""
+        page = ss.page_box(spacing=4)
+        head = Gtk.Box(spacing=8)
+        head.pack_start(self._gtk.Image("complete", 18, 18), False, False, 0)
+        self.dq_title = ss.label("", "ss-row-title", ellipsize=True)
+        head.pack_start(self.dq_title, True, True, 0)
+        page.pack_start(head, False, False, 0)
+        self.done_queue = QueueView(self, mode="start", on_close=self.dismiss)
+        page.pack_start(self.done_queue.box, True, True, 0)
         return page
 
     def done_key(self):
@@ -797,7 +960,12 @@ class Panel(ScreenPanel):
 
     def current_error(self):
         e = self._printer.get_stat("gcode_macro _SS_ERROR", "current")
-        return e if isinstance(e, dict) and e.get("code") else None
+        if not isinstance(e, dict) or not e.get("code"):
+            return None
+        # warnings the user chose not to see again (Settings › Hidden warnings); errors always show
+        if e.get("level") == "warn" and e["code"] in ss.get_setting("hidden_warnings", []):
+            return None
+        return e
 
     def show_error(self, e):
         warn = e.get("level") == "warn"
@@ -811,7 +979,9 @@ class Panel(ScreenPanel):
         self.err_file.set_text(ss.pretty_name(fn) if fn else "")
         # refused for this printer (outside the bed, nozzle, printer): it would be refused again
         refused = e.get("code") in ("file_bounds", "nozzle", "printer")
-        self.err_again.set_visible(bool(fn) and not warn and not refused)
+        # a warning: the button offers to stop showing this kind instead (the print went on)
+        ss.set_button_text(self.err_again, _("Don't show again") if warn else _("Print again"))
+        self.err_again.set_visible(warn or (bool(fn) and not refused))
         key = f"{e.get('code')}|{fn}|{detail}"
         if key != self.error_key:
             self.error_key = key
@@ -842,10 +1012,16 @@ class Panel(ScreenPanel):
 
     def error_print_again(self, *args):
         e = self.current_error() or {}
+        if e.get("level") == "warn":
+            ss.set_setting(
+                "hidden_warnings", [*ss.get_setting("hidden_warnings", []), e.get("code")]
+            )
+            self.dismiss_error()
+            return
         ss.gcode(self._screen, "_SS_ERROR_CLEAR")
         self.error_key = None
         if e.get("file"):
-            ss.bed_clear_then_print(self._screen, e["file"])
+            ss.bed_clear_then_print(self._screen, e["file"], after_print=True)
 
     # ------------------------------------------------------------ common
     def update_view(self):
@@ -866,11 +1042,23 @@ class Panel(ScreenPanel):
             self.done_title.set_text(
                 _("Print complete") if state == "complete" else _("Print failed")
             )
+            name = ss.pretty_name(p.get_stat("print_stats", "filename"))
             self.done_name.set_text(
-                f"{ss.pretty_name(p.get_stat('print_stats', 'filename'))} · "
-                f"{ss.fmt_duration(p.get_stat('print_stats', 'print_duration'))}"
+                f"{name} · {ss.fmt_duration(p.get_stat('print_stats', 'print_duration'))}"
             )
-            self.stack.set_visible_child_name("done")
+            if ss.queue_jobs():
+                was = self.stack.get_visible_child_name()
+                self.dq_title.set_text(
+                    f"{name} "
+                    + (_("finished") if state == "complete" else _("failed"))
+                    + " · "
+                    + _("clear the plate")
+                )
+                self.stack.set_visible_child_name("done_queue")
+                if was != "done_queue":
+                    self.done_queue.refresh()
+            else:
+                self.stack.set_visible_child_name("done")
         else:
             if self.stack.get_visible_child_name() != "idle" or not self.idle_box.get_children():
                 self.refresh_idle()
@@ -891,10 +1079,15 @@ class Panel(ScreenPanel):
         if self._printer and not ss.is_printing(self._printer):
             self.refresh_idle()
         self.update_view()
+        ss.queue_refresh(self._screen, self.queue_changed)
 
     def process_update(self, action, data):
         if action == "notify_status_update":
             self.update_view()
+            if "extruder" in data or "heater_bed" in data:
+                self.refresh_heat_button()
+        elif action == "notify_job_queue_changed":
+            ss.queue_refresh(self._screen, self.queue_changed)
         elif action == "notify_metadata_update" and data.get("filename") == self.job_file:
             self.job_file = None  # rebuild the job card thumbnail now that metadata exists
             self.update_view()
