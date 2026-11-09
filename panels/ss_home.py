@@ -19,6 +19,9 @@ from ks_includes.ss_queue import QueueView
 THUMB = 56
 
 
+OUTER_BTN_W = 104  # home filament row: Preheat / Cool down and Prime (D-117)
+
+
 class Panel(ScreenPanel):
     def __init__(self, screen, title, **kwargs):
         super().__init__(screen, title)
@@ -283,10 +286,17 @@ class Panel(ScreenPanel):
         else:
             self.fil_title.set_text(_("FILAMENT") + " · " + _("NONE LOADED"))
             buttons = [self._fil_button(_("Load filament"), "spool", load), heat]
-        self.fil_row.set_homogeneous(True)  # equal widths, so nothing shifts on Preheat / Cool down
+        # the outer buttons have one fixed width, the middle one takes the rest: nothing moves when
+        # Preheat becomes Cool down, and Change filament keeps room for its label (user, D-117)
+        self.fil_row.set_homogeneous(False)
         for b in buttons:
-            if b is not None:
-                self.fil_row.pack_start(b, True, True, 0)
+            if b is None:
+                continue
+            fixed = b is heat or (material and b is buttons[-1])
+            if fixed:
+                b.set_hexpand(False)
+                b.set_size_request(OUTER_BTN_W, -1)
+            self.fil_row.pack_start(b, not fixed, True, 0)
         self.fil_row.show_all()
 
     def refresh_heat_button(self):

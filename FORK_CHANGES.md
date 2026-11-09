@@ -97,7 +97,7 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 25 | 2026-10-04 | `panels/ss_settings.py` | Settings + Advanced mode |
 | 26 | 2026-10-04 | `panels/ss_dialog.py`, `panels/ss_adjust.py` | In-page confirmations and value adjuster |
 | 27 | 2026-10-04 | `panels/ss_cancel_object.py` | Bed map + part list |
-| 28 | 2026-10-04 | `panels/ss_filament.py` | Guided load / unload / change filament. 2026-11-08: Prime mode, and walk-away loading (Grab while heating, loads by itself when hot, heater off) (klipper-ui D-116) |
+| 28 | 2026-10-04 | `panels/ss_filament.py` | Guided load / unload / change filament. 2026-11-08: Prime mode, and walk-away loading (Grab while heating, loads by itself when hot, heater off) (klipper-ui D-116). 2026-11-08: heater timeout shown with Heat again, Unloaded state, change with nothing loaded goes to loading (klipper-ui D-117) |
 | 29 | 2026-10-05 | `panels/ss_prompt.py` | In-page macro prompts (hook #9) |
 | 30 | 2026-10-05 | `panels/ss_stopped.py` | "Printer stopped / error" (hook #8). 2026-11-08: says "Print canceled" when the cancel backstop stopped it (klipper-ui D-116) |
 | 31 | 2026-10-05 | `panels/ss_starting.py` | "Starting printer…" (hook #11) |

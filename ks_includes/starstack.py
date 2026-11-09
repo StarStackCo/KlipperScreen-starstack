@@ -845,8 +845,12 @@ def ask_estop(screen):
 # cancel) until the heater is at temperature. Backstop: if a cancel hasn't started 3 s after the tap
 # and a heater is still on and away from its target (= a heat wait), emergency stop, then restart.
 # A normal cancel turns the heaters off as its first step, so this never fires once it is running.
-CANCEL_BACKSTOP_S = 3
-_cancel = {"since": None, "estop_at": None}
+# 8 s, below target by more than 5°C and still warming since the tap (D-117): a normal mid-print
+# cancel parks first and can be a few degrees off after a layer temperature change; that is not a
+# heat wait and must not be e-stopped.
+CANCEL_BACKSTOP_S = 8
+HEAT_WAIT_MARGIN = 5
+_cancel = {"since": None, "estop_at": None, "temps": {}}
 
 
 def cancel_estop_recent(seconds=30):
@@ -867,14 +871,23 @@ def canceling():
     return _cancel["since"] is not None
 
 
-def heat_wait_blocking(printer):
-    """True if Klipper is most likely stuck in an M190/M109 wait of an old-style file."""
+def heater_temps(printer):
+    return {
+        dev: printer.get_stat(dev, "temperature") or 0
+        for dev in ["heater_bed"] + list(printer.get_tools())
+    }
+
+
+def heat_wait_blocking(printer, temps_at_tap=None):
+    """True if Klipper is most likely stuck in an M190/M109 wait of an old-style file: a heater
+    well below its target and still warming up since the cancel was tapped."""
     if printer.state != "printing" or start_stage(printer):
         return False
     for dev in ["heater_bed"] + list(printer.get_tools()):
         target = printer.get_stat(dev, "target") or 0
         temp = printer.get_stat(dev, "temperature") or 0
-        if target > 0 and abs(temp - target) > 2:
+        warming = temps_at_tap is None or temp > temps_at_tap.get(dev, temp)
+        if target > 0 and target - temp > HEAT_WAIT_MARGIN and warming:
             return True
     return False
 
@@ -882,6 +895,7 @@ def heat_wait_blocking(printer):
 def cancel_print(screen):
     started = time.monotonic()
     _cancel["since"] = started
+    _cancel["temps"] = heater_temps(screen.printer) if screen.printer else {}
     screen._ws.api.print_cancel()
 
     def restart():
@@ -896,7 +910,7 @@ def cancel_print(screen):
         if p is None or p.state not in ("printing", "paused") or waited > 120:
             _cancel["since"] = None
             return False
-        if waited >= CANCEL_BACKSTOP_S and heat_wait_blocking(p):
+        if waited >= CANCEL_BACKSTOP_S and heat_wait_blocking(p, _cancel["temps"]):
             logging.warning("StarStack: cancel stuck behind a heater wait: e-stop + restart")
             _cancel["since"] = None
             _cancel["estop_at"] = time.monotonic()
