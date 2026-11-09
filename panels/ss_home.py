@@ -283,6 +283,7 @@ class Panel(ScreenPanel):
         else:
             self.fil_title.set_text(_("FILAMENT") + " · " + _("NONE LOADED"))
             buttons = [self._fil_button(_("Load filament"), "spool", load), heat]
+        self.fil_row.set_homogeneous(True)  # equal widths, so nothing shifts on Preheat / Cool down
         for b in buttons:
             if b is not None:
                 self.fil_row.pack_start(b, True, True, 0)
