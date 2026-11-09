@@ -20,7 +20,10 @@ class Panel(ScreenPanel):
         super().__init__(screen, title)
         self.then = ss_then  # after Done (not Cancel): e.g. back to Print (D-090)
         self.change = ss_mode == "change"  # color change: unload, then load the same material
-        if self.change:
+        # loading over a loaded filament: unload it first, then pick the new one. "swap" is Home's
+        # Change filament, which starts the unload at once (user, klipper-ui D-126)
+        self.swap = ss_mode == "swap"
+        if self.change or self.swap:
             ss_mode = "unload"
         self.mode = ss_mode
         self.mat = ss_material if ss_mode in ("unload", "prime") else None
@@ -29,7 +32,6 @@ class Panel(ScreenPanel):
         self.unload_done = False  # the unload's moves have finished (D-117)
         self.loaded = None  # filled in asynchronously (save_variables query)
         self.checked = ss_mode != "load"  # load: material buttons only once we know nothing is in
-        self.swap = False  # loading over a loaded filament: unload it first, then pick the new one
         if ss_mode == "load" or (self.change and not ss_material):
             ss.query_loaded_material(screen, self._got_loaded)
         self.step = "pick" if not self.mat else "heat"

@@ -750,7 +750,7 @@ def file_material(screen, filename):
 
 
 def bed_clear_then_print(screen, filename, after_print=False):
-    """Every Print button: filament check (klipper-ui D-090), then "Print this file?".
+    """Every Print button: filament check (klipper-ui D-090), then "Print <name>?" (D-126).
     after_print: Print again / retry after an error, where the last part is still on the bed:
     ask "Is the bed clear?" instead (user, D-124)."""
     query_loaded_material(
@@ -829,10 +829,11 @@ def _bed_clear(screen, filename, after_print=False):
             no_label=_("Not yet"),
         )
         return
+    secs = (screen.files.get_file_info(filename) or {}).get("estimated_time")
     confirm(
         screen,
-        _("Print this file?"),
-        pretty_name(filename),
+        _("Print") + f" {pretty_name(filename)}?",  # the file's name, not "this file" (user, D-126)
+        " · ".join(x for x in (file_material(screen, filename), fmt_duration(secs)) if x),
         _("Print"),
         lambda: screen._ws.api.print_start(filename),
         no_label=_("Go back"),

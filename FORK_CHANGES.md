@@ -89,15 +89,15 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 |---|---|---|---|
 | 1 | 2026-10-04 | `FORK_CHANGES.md` | This file |
 | 3 | 2026-10-04 | `styles/starstack/` | Theme. **Generated** by `tools/starstack/build_theme.py`, never hand-edit |
-| 20 | 2026-10-04 | `ks_includes/starstack.py` | Shared helpers, materials, Advanced-mode store, in-page dialogs, **rail + STOP**, content guard (no page can push STOP off-screen), color-change scanner; Print confirmation: just **Print** for a file picked by hand, **Is the bed clear?** for Print again and retry (klipper-ui D-124) |
+| 20 | 2026-10-04 | `ks_includes/starstack.py` | Shared helpers, materials, Advanced-mode store, in-page dialogs, **rail + STOP**, content guard (no page can push STOP off-screen), color-change scanner; Print confirmation: **Print <file name>?** with material and time for a file picked by hand (klipper-ui D-124, D-126), **Is the bed clear?** for Print again and retry (klipper-ui D-124) |
 | 21 | 2026-10-04 | `ks_includes/starstack_devtools.py` | Bench test helper. **Off** unless `~/.starstack_dev` exists |
-| 22 | 2026-10-04 | `panels/ss_home.py` | Home: idle / printing / paused / done, time left and finish time on the job line, warnings only after the print and they can be hidden (klipper-ui D-114), color-change countdown, reheat-then-resume; job queue: Next up line in the job card while printing, Up next card when idle, print done with jobs waiting = queue + filament check (klipper-ui D-111) |
+| 22 | 2026-10-04 | `panels/ss_home.py` | Home: idle / printing / paused / done, time left and finish time on the job line, warnings only after the print and they can be hidden (klipper-ui D-114), color-change countdown, reheat-then-resume; job queue: Next up line in the job card while printing, Up next card when idle, print done with jobs waiting = queue + filament check (klipper-ui D-111). 2026-11-09: Change filament starts the unload at once (klipper-ui D-126) |
 | 23 | 2026-10-04 | `panels/ss_print.py` | File grid, sort, pager; while printing a tapped file is offered for the queue (klipper-ui D-111) |
 | 24 | 2026-10-04 | `panels/ss_controls.py` | Temps, fan, filament (remembered), movement (locked while printing) |
 | 25 | 2026-10-04 | `panels/ss_settings.py` | Settings + Advanced mode |
 | 26 | 2026-10-04 | `panels/ss_dialog.py`, `panels/ss_adjust.py` | In-page confirmations and value adjuster |
 | 27 | 2026-10-04 | `panels/ss_cancel_object.py` | Bed map + part list |
-| 28 | 2026-10-04 | `panels/ss_filament.py` | Guided load / unload / change filament. 2026-11-08: Prime mode, and walk-away loading (Grab while heating, loads by itself when hot, heater off) (klipper-ui D-116). 2026-11-08: heater timeout shown with Heat again, Unloaded state, change with nothing loaded goes to loading (klipper-ui D-117) |
+| 28 | 2026-10-04 | `panels/ss_filament.py` | Guided load / unload / change filament. 2026-11-08: Prime mode, and walk-away loading (Grab while heating, loads by itself when hot, heater off) (klipper-ui D-116). 2026-11-08: heater timeout shown with Heat again, Unloaded state, change with nothing loaded goes to loading (klipper-ui D-117). 2026-11-09: `swap` mode for Home's Change filament: unloads at once, then asks for the new one (klipper-ui D-126) |
 | 29 | 2026-10-05 | `panels/ss_prompt.py` | In-page macro prompts (hook #9) |
 | 30 | 2026-10-05 | `panels/ss_stopped.py` | "Printer stopped / error" (hook #8). 2026-11-08: says "Print canceled" when the cancel backstop stopped it (klipper-ui D-116) |
 | 31 | 2026-10-05 | `panels/ss_starting.py` | "Starting printer…" (hook #11) |

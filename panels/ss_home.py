@@ -274,7 +274,14 @@ class Panel(ScreenPanel):
             self.fil_title.set_text(_("FILAMENT") + f" · {material} " + _("LOADED"))
             buttons = [
                 heat,
-                self._fil_button(_("Change filament"), None, load),
+                self._fil_button(
+                    _("Change filament"),
+                    None,
+                    # starts unloading at once, then asks for the new one (user, klipper-ui D-126)
+                    lambda w: ss._push(
+                        self._screen, "ss_filament", ss_mode="swap", ss_material=material
+                    ),
+                ),
                 self._fil_button(
                     _("Prime"),
                     None,
