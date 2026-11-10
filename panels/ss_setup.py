@@ -1,5 +1,5 @@
 # STARSTACK-ADDED: first power-up setup (FORK_CHANGES.md #56, klipper-ui D-114, D-NEW setup)
-# Welcome, time zone and clock, Wi-Fi, self-check, tour, filament, first print; every step can be
+# Welcome, time zone, Wi-Fi, self-check, tour, filament, first print; every step can be
 # skipped. Opens by itself once on a new printer (starstack.offer_setup) and from Settings.
 # Design: claude.ai canvas "First power-up and factory reset". The rail keeps its normal buttons
 # and STOP; the step number shows above each page instead of the canvas's step rail.
@@ -24,31 +24,6 @@ ZONES = [
     ("America/Los_Angeles", "Pacific"),
     ("America/Anchorage", "Alaska"),
     ("Pacific/Honolulu", "Hawaii"),
-]
-OTHER_ZONES = [
-    ("America/Phoenix", "Arizona"),
-    ("America/Puerto_Rico", "Puerto Rico"),
-    ("America/Toronto", "Toronto"),
-    ("America/Vancouver", "Vancouver"),
-    ("America/Mexico_City", "Mexico City"),
-    ("America/Sao_Paulo", "São Paulo"),
-    ("Europe/London", "London"),
-    ("Europe/Dublin", "Dublin"),
-    ("Europe/Paris", "Paris"),
-    ("Europe/Berlin", "Berlin"),
-    ("Europe/Madrid", "Madrid"),
-    ("Europe/Rome", "Rome"),
-    ("Europe/Athens", "Athens"),
-    ("Asia/Dubai", "Dubai"),
-    ("Asia/Kolkata", "India"),
-    ("Asia/Singapore", "Singapore"),
-    ("Asia/Shanghai", "China"),
-    ("Asia/Tokyo", "Tokyo"),
-    ("Asia/Seoul", "Seoul"),
-    ("Australia/Perth", "Perth"),
-    ("Australia/Sydney", "Sydney"),
-    ("Pacific/Auckland", "Auckland"),
-    ("UTC", "UTC"),
 ]
 STEP_NO = {"time": 1, "wifi": 2, "check": 3, "tour": 4, "filament": 4, "print": 4}
 STEP_NAME = {"time": "Time", "wifi": "Wi-Fi", "check": "Self-check", "filament": "Filament"}
@@ -290,22 +265,12 @@ class Panel(ScreenPanel):
         btns = []
         for tz, name in ZONES:
             b = ss.button(name, zone_now(tz, h24), css="ss-btn ss-btn-card")
+            b.set_size_request(-1, 50)  # 44 px read too short to tap (user)
             ss.set_class(b, "ss-card-hl", tz == zone)
             b.connect("clicked", lambda w, z=tz: self.set_zone(z))
             btns.append(b)
         ss.grid_add(grid, btns)
         self.page.add(grid)
-        other = dict(OTHER_ZONES).get(zone)
-        row = Gtk.Box(spacing=6, homogeneous=True)
-        for text, on, cb in (
-            (other or _("Other zone"), bool(other), self.pick_other),
-            (_("12-hour"), not h24, lambda: self.set_24h(False)),
-            (_("24-hour"), h24, lambda: self.set_24h(True)),
-        ):
-            b = ss.button(text, css="ss-btn " + ("ss-btn-primary" if on else "ss-btn-outline"))
-            b.connect("clicked", lambda w, c=cb: c())
-            row.add(b)
-        self.page.add(row)
         self.actions(
             [
                 (_("Back"), lambda: self.show("welcome"), "outline"),
@@ -313,9 +278,6 @@ class Panel(ScreenPanel):
                 (_("Next"), lambda: self.go("time", "wifi"), "primary"),
             ]
         )
-
-    def pick_other(self):
-        ss.choose(self._screen, _("Time zone"), OTHER_ZONES, current_zone(), self.set_zone)
 
     def set_zone(self, zone):
         # needs install.sh's polkit rule (klipper-ui D-NEW first power-up); without it timedatectl
@@ -339,11 +301,6 @@ class Panel(ScreenPanel):
             self._screen.show_popup_message(_("Couldn't change the time zone"), 2)
         if self.step == "time":
             self.show("time")
-
-    def set_24h(self, on):
-        self._config.set("main", "24htime", str(on))
-        self._config.save_user_config_options()
-        self.show("time")
 
     # ------------------------------------------------------------ 3 Wi-Fi
     def page_wifi(self):
@@ -468,7 +425,7 @@ class Panel(ScreenPanel):
             ]
         )
         self.tap_busy = False
-        self.every(250, self.poll_tap)
+        self.every(50, self.poll_tap)
 
     def poll_tap(self):
         t = round(self.temp("extruder"))
@@ -479,15 +436,17 @@ class Panel(ScreenPanel):
             return True
         self.tap_temp.set_text(_("It's not hot: {}°C, safe to touch.").format(t))
         if not self.tap_busy:
-            # Z homes on the probe (probe:z_virtual_endstop), so its endstop state is the probe's.
-            # Moonraker's endstop query prints nothing to the console, unlike QUERY_PROBE.
+            # Z homes on the probe (probe:z_virtual_endstop), so stepper_z's state is the probe's.
+            # Moonraker's endstop query prints nothing to the console, unlike QUERY_PROBE. One query
+            # takes about 300 ms on the S1, so the next starts as soon as one answers: a tap
+            # shorter than that can still be missed.
             self.tap_busy = True
             ss.request(self._screen, "printer.query_endstops.status", {}, self._got_endstops)
         return True
 
     def _got_endstops(self, result):
         self.tap_busy = False
-        if self.step == "check_tap" and (result or {}).get("z") == "TRIGGERED":
+        if self.step == "check_tap" and (result or {}).get("stepper_z") == "TRIGGERED":
             self.check_result("tap", "ok", _("You tapped it"))
 
     def check_result(self, name, state, note):

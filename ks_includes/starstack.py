@@ -1005,6 +1005,8 @@ class StarStackRail:
             b.connect("clicked", self.go, page)
             b.connect("clicked", self.screen.remove_keyboard)
             slot(b, 48, 44)
+            b.set_no_show_all(True)  # hidden during the first power-up setup (on_panel)
+            b.show_all()
             self.nav[page] = b
         self.stop = Gtk.Button(can_focus=False)
         stop_box = Gtk.Box(
@@ -1104,9 +1106,13 @@ class StarStackRail:
             "error",
             None,
         )
+        # the setup (and the pages it opens) shows STOP only: no way out of a running self-check
+        # with no way back in (user, klipper-ui D-NEW setup)
+        setup = "ss_setup" in self.screen._cur_panels or panel_name == "ss_setup"
         for page, b in self.nav.items():
             set_class(b, "ss-rail-active", page == root)
             b.set_sensitive(ready)
+            b.set_visible(not setup)
         self.update_stop()
 
     def update_stop(self):
