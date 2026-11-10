@@ -176,6 +176,27 @@ def history(screen, limit, on_jobs):
     )
 
 
+# ---------------------------------------------------------------- first power-up (klipper-ui D-114)
+_setup_offered = False
+
+
+def offer_setup(screen, own_files):
+    """Home calls this: a new printer (setup never finished or skipped, no own files, empty print
+    history) opens the first power-up setup, once per start. A failed history request opens
+    nothing, so a printer in use never gets it by mistake."""
+    global _setup_offered
+    if _setup_offered or own_files or get_setting("setup_done"):
+        return
+    _setup_offered = True
+
+    def got(r):
+        idle = screen._cur_panels == ["ss_home"] and not is_printing(screen.printer)
+        if r is not None and not r.get("jobs") and idle:
+            screen.show_panel("ss_setup", remove_all=True)
+
+    request(screen, "server.history.list", {"limit": 1}, got)
+
+
 # ---------------------------------------------------------------- job queue (klipper-ui D-111)
 # Moonraker's own job queue, so Mainsail's Queue panel shows the same list. It never starts the
 # next job by itself (automatic_transition off): the screen starts it when the plate is clear.

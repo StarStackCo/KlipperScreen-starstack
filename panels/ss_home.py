@@ -1080,6 +1080,8 @@ class Panel(ScreenPanel):
             self.refresh_idle()
         self.update_view()
         ss.queue_refresh(self._screen, self.queue_changed)
+        if self._printer and not ss.is_printing(self._printer):
+            ss.offer_setup(self._screen, self.own_files())  # new printer: first power-up setup
 
     def process_update(self, action, data):
         if action == "notify_status_update":

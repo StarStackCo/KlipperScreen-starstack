@@ -124,6 +124,12 @@ class Panel(ScreenPanel):
             # always here (user, 2026-10-08): one-tap updates for everyone; Advanced adds the
             # per-app list on the Updates page
             (_("Updates"), "", lambda: self.open("ss_updates", _("Updates")), True),
+            (
+                _("Setup and tour") + lock,
+                _("time, Wi-Fi, self-check"),
+                lambda: self._screen.show_panel("ss_setup", _("Setup"), remove_all=True),
+                not printing,
+            ),
             (_("About this printer"), "", lambda: self.open("ss_about", _("About")), True),
             (
                 _("Shut down / reboot") + lock,
