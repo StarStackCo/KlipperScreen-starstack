@@ -1,8 +1,9 @@
 # STARSTACK-ADDED: first power-up setup (FORK_CHANGES.md #56, klipper-ui D-114, D-137)
 # Welcome, time zone, Wi-Fi, self-check, tour, filament, first print; every step can be
 # skipped. Opens by itself once on a new printer (starstack.offer_setup) and from Settings.
-# Design: claude.ai canvas "First power-up and factory reset". The rail keeps its normal buttons
-# and STOP; the step number shows above each page instead of the canvas's step rail.
+# Design: claude.ai canvas "First power-up and factory reset". The rail shows STOP only until the
+# tour, then its icons too (not tappable, highlighted by the tour); the step number shows above
+# each page instead of the canvas's step rail.
 import logging
 import os
 import subprocess
@@ -181,11 +182,14 @@ class Panel(ScreenPanel):
         super().__init__(screen, title)
         self.skipped = []  # step names the user skipped, listed on the last page
         self.results = {}  # self-check: name -> (state, note); state ok | fail | skip
+        if getattr(self, "timer", None):  # re-init (Settings > Setup and tour): old timer off
+            GLib.source_remove(self.timer)
         self.timer = None
+        self.run = getattr(self, "run", 0) + 1  # self-check run number: stale G28 replies ignored
         self.away = None  # "filament" / "wifi": a page opened from here, act on return
         self.tour_page = 0
         self.rail_show, self.rail_mark = False, None
-        self.checking = False  # self-check heaters or moves are running
+        self.checking = False  # a self-check run is going (Start check until done/stop/fail)
         self.live = {}  # self-check: name -> live note (temperature while heating)
         self.page = ss.page_box(spacing=6)
         self.content.add(self.page)
@@ -311,7 +315,7 @@ class Panel(ScreenPanel):
                 ["timedatectl", "--no-ask-password", "set-timezone", zone],
                 capture_output=True,
                 text=True,
-                timeout=10,
+                timeout=3,  # runs on the screen's thread
             )
             ok = r.returncode == 0
             if not ok:
@@ -395,7 +399,16 @@ class Panel(ScreenPanel):
     def temp(self, heater):
         return self._printer.get_stat(heater, "temperature") or 0
 
+    def busy(self):
+        """A print (printing or paused, incl. PRINT_START heating) or any G-code still running."""
+        p = self._printer
+        return ss.is_printing(p) or p.get_stat("idle_timeout", "state") == "Printing"
+
     def start_check(self):
+        if self.busy():
+            self._screen.show_popup_message(_("The printer is busy. Try again when it's idle."), 2)
+            return
+        self.run += 1
         self.results = {}
         self.told = set()  # notice pages already OK'd this run ("heat", "home")
         t = [round(self.temp("extruder")), round(self.temp("heater_bed"))]
@@ -410,6 +423,7 @@ class Panel(ScreenPanel):
             self.show_fail(failed[0])
             return
         todo = next((n for n, _l in CHECKS if n not in self.results), None)
+        self.checking = todo is not None  # also after Skip / Try again on a failure page
         if todo is None:
             self.end_check()
             self.show("check_done")
@@ -429,6 +443,10 @@ class Panel(ScreenPanel):
 
     def end_check(self):
         self.checking = False
+        self.run += 1
+        self.stop_timer()
+        if ss.is_printing(self._printer):  # a print started meanwhile: its heaters, not ours
+            return
         ss.gcode(self._screen, "TURN_OFF_HEATERS\nM107")
 
     # ---- tap the nozzle (the probe) before anything moves or heats (user, D-114)
@@ -445,7 +463,8 @@ class Panel(ScreenPanel):
         self.tap_state = self.text(_("Waiting for your tap…"), "ss-row-title ss-text-warning")
         self.actions(
             [
-                (_("Skip this check"), lambda: self.check_result("tap", "skip", ""), "outline"),
+                (_("Stop"), self.stop_check, "outline"),
+                (_("Skip"), lambda: self.check_result("tap", "skip", ""), "outline"),
                 (
                     _("Nothing happened"),
                     lambda: self.check_result("tap", "fail", _("No tap seen")),
@@ -483,7 +502,12 @@ class Panel(ScreenPanel):
         self.page.add(ss.label(_("Self-check"), "ss-muted"))
         self.page.add(ss.label(title, "ss-done-title", wrap=True))
         self.text(body)
-        self.actions([(_("OK"), lambda: self.told_ok(key), "primary")])
+        self.actions(
+            [
+                (_("Stop the check"), self.stop_check, "outline"),
+                (_("OK"), lambda: self.told_ok(key), "primary"),
+            ]
+        )
 
     def told_ok(self, key):
         self.told.add(key)
@@ -535,7 +559,14 @@ class Panel(ScreenPanel):
             self.page.add(row)
             self.run_rows[name] = note
         self.refresh_rows()
-        self.actions([(_("Stop the check"), self.stop_check, "outline")])
+        if "home" in self.live and "home" not in self.results:
+            # G28 is one blocking command: a button here couldn't stop it, only STOP can
+            self.page.pack_start(Gtk.Box(vexpand=True), True, True, 0)
+            self.page.add(
+                ss.label(_("To stop homing, use STOP on the left."), "ss-row-title ss-text-warning")
+            )
+        else:
+            self.actions([(_("Stop the check"), self.stop_check, "outline")])
 
     def refresh_rows(self):
         marks = {"ok": "✓ ", "skip": _("skipped") + " ", "fail": "✗ "}
@@ -621,8 +652,10 @@ class Panel(ScreenPanel):
         self.live = {"home": _("running")}
         self.show("check_run")
 
+        run = self.run
+
         def done(result):
-            if not self.checking:  # stopped meanwhile
+            if not self.checking or run != self.run:  # stopped, left or a new run meanwhile
                 return
             self.results["home"] = ("ok", "") if result is not None else ("fail", "")
             self.next_check()
@@ -849,8 +882,9 @@ class Panel(ScreenPanel):
             )
 
     def deactivate(self):
-        if self.checking and not self.away:  # left the self-check by the rail: heaters off
+        # left by STOP's dialog, a print starting, Klipper stopping or the rail: no timer keeps
+        # running, and a self-check turns its heaters and fan off (never a print's, see end_check)
+        self.stop_timer()
+        if self.checking and not self.away:
             self.end_check()
-            self.stop_timer()
-            self.step = "check"
             self.show("check")

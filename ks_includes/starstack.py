@@ -190,7 +190,8 @@ def offer_setup(screen, own_files):
     _setup_offered = True
 
     def got(r):
-        idle = screen._cur_panels == ["ss_home"] and not is_printing(screen.printer)
+        busy = screen.printer.get_stat("idle_timeout", "state") == "Printing"  # e.g. a macro
+        idle = screen._cur_panels == ["ss_home"] and not is_printing(screen.printer) and not busy
         if r is not None and not r.get("jobs") and idle:
             screen.show_panel("ss_setup", remove_all=True)
 
