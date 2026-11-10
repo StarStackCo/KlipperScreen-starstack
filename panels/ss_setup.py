@@ -233,11 +233,14 @@ class Panel(ScreenPanel):
         """buttons: [(text, callback, kind)] with kind outline | primary. Pinned to the bottom."""
         self.page.pack_start(Gtk.Box(vexpand=True), True, True, 0)
         row = Gtk.Box(spacing=8, homogeneous=True)
+        made = []
         for text, cb, kind in buttons:
             b = ss.button(text, css=f"ss-btn ss-btn-{kind} ss-btn-action")
             b.connect("clicked", lambda w, c=cb: c())
             row.add(b)
+            made.append(b)
         self.page.add(row)
+        return made
 
     def skip(self, step, nxt):
         if step not in self.skipped:
@@ -325,6 +328,9 @@ class Panel(ScreenPanel):
             ok = False
         if ok:
             time.tzset()  # this app's clock follows at once
+            bar = self._screen.base_panel  # it redraws only on a new minute: force it (user)
+            bar.time_min = -1
+            bar.update_time()
         else:
             self._screen.show_popup_message(_("Couldn't change the time zone"), 2)
         if self.step == "time":
@@ -452,35 +458,52 @@ class Panel(ScreenPanel):
     # ---- tap the nozzle (the probe) before anything moves or heats (user, D-114)
     def page_check_tap(self):
         self.page.add(ss.label(_("Self-check · Bed probe"), "ss-muted"))
-        self.page.add(ss.label(_("Tap the nozzle"), "ss-done-title"))
-        self.text(
-            _(
-                "The nozzle is also the bed probe. Give its tip a light tap with your finger, to "
-                "prove the probe works before anything moves."
-            )
-        )
+        self.tap_title = ss.label("", "ss-done-title", wrap=True)
+        self.page.add(self.tap_title)
+        self.tap_body = self.text("")
         self.tap_temp = self.text("", "ss-row-title ss-text-sky")
-        self.tap_state = self.text(_("Waiting for your tap…"), "ss-row-title ss-text-warning")
-        self.actions(
+        self.tap_state = self.text("", "ss-row-title ss-text-warning")
+        # short labels: three buttons share about 400 px ("Nothing happened" pushed the page wide)
+        *_rest, self.tap_none = self.actions(
             [
                 (_("Stop"), self.stop_check, "outline"),
                 (_("Skip"), lambda: self.check_result("tap", "skip", ""), "outline"),
                 (
-                    _("Nothing happened"),
+                    _("No reaction"),
                     lambda: self.check_result("tap", "fail", _("No tap seen")),
                     "outline",
                 ),
             ]
         )
         self.tap_busy = False
+        self.tap_hot = None  # shown state: True = waiting to cool, False = asking for the tap
+        self.poll_tap()
         self.every(50, self.poll_tap)
 
     def poll_tap(self):
         t = round(self.temp("extruder"))
-        if t > TAP_SAFE:
-            self.tap_temp.set_text(
-                _("Still warm: {}°C. Wait until it's below {}°C.").format(t, TAP_SAFE)
+        # 2°C of hysteresis: a reading at 45 to 46°C must not flip between wait and tap
+        hot = t > (TAP_SAFE + 2 if self.tap_hot is False else TAP_SAFE)
+        if hot != self.tap_hot:  # a still-hot nozzle (e.g. a check run again) waits first (user)
+            self.tap_hot = hot
+            self.tap_title.set_text(
+                _("Wait for the nozzle to cool") if hot else _("Tap the nozzle")
             )
+            self.tap_body.set_text(
+                _(
+                    "It's still hot. Don't touch it yet: this page asks for the tap by itself "
+                    "once it's below {}°C."
+                ).format(TAP_SAFE)
+                if hot
+                else _(
+                    "The nozzle is also the bed probe. Give its tip a light tap with your finger, "
+                    "to prove the probe works before anything moves."
+                )
+            )
+            self.tap_state.set_text("" if hot else _("Waiting for your tap…"))
+            self.tap_none.set_sensitive(not hot)
+        if hot:
+            self.tap_temp.set_text(_("Nozzle: {}°C").format(t))
             return True
         self.tap_temp.set_text(_("It's not hot: {}°C, safe to touch.").format(t))
         if not self.tap_busy:
