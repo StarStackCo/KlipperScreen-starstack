@@ -138,18 +138,25 @@ FIRST_PRINT = ('filament_settings_id = "Overture PLA"', "print_settings_id = 0.2
 
 
 def pick_first(paths, gcodes_dir):
-    """The first file whose slicer settings (near the end of the file) match FIRST_PRINT."""
+    """The first file whose slicer settings (near the end) match FIRST_PRINT, else the first one
+    that starts with PRINT_START, else None. A file without PRINT_START heats with a blocking
+    M190, so Cancel waits behind it and the cancel backstop e-stops (user, first S1 try)."""
+    usable = []
     for path in paths:
         try:
             with open(os.path.join(gcodes_dir, path), "rb") as f:
+                head = f.read(262144).decode("utf-8", "ignore")  # start G-code, after thumbnails
                 f.seek(0, os.SEEK_END)
                 f.seek(max(0, f.tell() - 65536))
                 tail = f.read().decode("utf-8", "ignore")
         except OSError:
             continue
+        if "\nPRINT_START" not in head:
+            continue
         if all(key in tail for key in FIRST_PRINT):
             return path
-    return paths[0] if paths else None
+        usable.append(path)
+    return usable[0] if usable else None
 
 
 def current_zone():
