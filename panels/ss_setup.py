@@ -482,7 +482,8 @@ class Panel(ScreenPanel):
 
     def poll_tap(self):
         t = round(self.temp("extruder"))
-        hot = t > TAP_SAFE
+        # 2°C of hysteresis: a reading at 45 to 46°C must not flip between wait and tap
+        hot = t > (TAP_SAFE + 2 if self.tap_hot is False else TAP_SAFE)
         if hot != self.tap_hot:  # a still-hot nozzle (e.g. a check run again) waits first (user)
             self.tap_hot = hot
             self.tap_title.set_text(
