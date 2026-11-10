@@ -83,7 +83,6 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 49 | 2026-10-08 | `screen.py` `ws_subscribe` | Also subscribes to `gcode_macro PRINT_START` (`stage`, `target`, `soak`: heat soak D-096, `want`: the file's material D-106) and `gcode_macro _SS_ERROR` (`current`: error card on Home, D-105): while the start of a print heats up the file is paused in the background (klipper-ui D-089), and Home shows "Heating bed 40/60°" instead of "Paused" |
 | 50 | 2026-10-08 | `screen.py` (imports, after the first `show_all`) | Starts the screen guard (row 51): ghost-touch filter and a full repaint every 5 s (klipper-ui D-094) |
 | 56 | 2026-11-05 | `panels/base_panel.py` `process_update` | Title bar temperatures with their unit, 60°C (klipper-ui D-114) |
-| 57 | 2026-11-10 | `REVIEW.md` | What a reviewer looks for here: failures per area (heaters left on, moves while printing, STOP hidden, GTK thread blocked, unmarked upstream edits), paperwork, CI checks to skip; report format from klipper-ui's REVIEW.md (klipper-ui D-NEW fork review) |
 
 ### Files we added (never conflict)
 | # | Date | Files | What |
@@ -124,3 +123,4 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 54 | 2026-11-03 | `ks_includes/ss_queue.py` | Job queue list (Moonraker's queue, so Mainsail shows the same): move earlier / later / remove, next job's filament check, Not now / Print anyway / Change to X or Plate is clear, start (klipper-ui D-111). Queue helpers in `starstack.py`, styles `.ss-q*` |
 | 55 | 2026-11-03 | `panels/ss_queue.py` | Queue page, opened from Home (klipper-ui D-111) |
 | 56 | 2026-11-10 | `panels/ss_setup.py` | First power-up setup (klipper-ui D-114, D-137): welcome, time zone and 12/24 h, Wi-Fi, self-check (sensors, nozzle tap on the probe before anything moves, nozzle and bed heaters, part fan question, homing), 5-page tour, filament, first print; every step skippable. `starstack.offer_setup()` opens it once when there are no own files and no print history |
+| 57 | 2026-11-10 | `REVIEW.md` | What a reviewer looks for here: failures per area (heaters left on, moves while printing, STOP hidden, GTK thread blocked, unmarked upstream edits), paperwork, CI checks to skip; report format from klipper-ui's REVIEW.md (klipper-ui D-138) |

@@ -35,7 +35,8 @@ touchscreen, often for someone who has never used a 3D printer. Report the way k
 
 ## Already checked by CI, don't repeat
 
-`ruff check`, `ruff format --check` on StarStack files, `check_markers.py`, `build_theme.py --check`.
+`ruff check`, `ruff format --check` on StarStack files, `check_markers.py`, `build_theme.py --check`, trufflehog
+(secrets).
 Flag a gap in these checks instead.
 
 ## Skip
