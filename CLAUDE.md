@@ -21,6 +21,9 @@ upstream's, not ours.
 - The theme in `styles/starstack/` is generated: edit `tools/starstack/style.css`, run `build_theme.py`.
 - Nothing is installed on the printer or pushed without the user's OK for that step (klipper-ui D-003).
   Installs and screenshots run from klipper-ui (`scripts/ks-update.sh`, `scripts/ks-screenshot.sh`).
+- Reviews follow `REVIEW.md`. Before a branch merges into `dev`, a subagent with fresh context reviews
+  `git diff dev...<branch>` against it; show the user the count, and fix every Important finding or the user
+  accepts it (klipper-ui D-136, D-NEW fork review). Branch from `origin/dev`, not `master` or `starstack`.
 - Skill: `fork-workflow` (any change here, theme, installs, upstream merges).
 
 ## Recording work

@@ -56,7 +56,7 @@ When merging upstream: conflicts can only happen inside `STARSTACK-CHANGE` block
 
 ## Change list
 Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: the code carries
-`STARSTACK-CHANGE #n BEGIN/END` markers with the same number. Numbers **20–47 and 51–56** are files we added
+`STARSTACK-CHANGE #n BEGIN/END` markers with the same number. Numbers **20–47 and 51–57** are files we added
 (each starts with a `STARSTACK-ADDED` note). `python tools/starstack/check_markers.py` verifies this.
 
 ### Edits inside upstream files (merge conflicts can only happen here)
@@ -83,6 +83,7 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 49 | 2026-10-08 | `screen.py` `ws_subscribe` | Also subscribes to `gcode_macro PRINT_START` (`stage`, `target`, `soak`: heat soak D-096, `want`: the file's material D-106) and `gcode_macro _SS_ERROR` (`current`: error card on Home, D-105): while the start of a print heats up the file is paused in the background (klipper-ui D-089), and Home shows "Heating bed 40/60°" instead of "Paused" |
 | 50 | 2026-10-08 | `screen.py` (imports, after the first `show_all`) | Starts the screen guard (row 51): ghost-touch filter and a full repaint every 5 s (klipper-ui D-094) |
 | 56 | 2026-11-05 | `panels/base_panel.py` `process_update` | Title bar temperatures with their unit, 60°C (klipper-ui D-114) |
+| 57 | 2026-11-10 | `REVIEW.md` | What a reviewer looks for here: failures per area (heaters left on, moves while printing, STOP hidden, GTK thread blocked, unmarked upstream edits), paperwork, CI checks to skip; report format from klipper-ui's REVIEW.md (klipper-ui D-NEW fork review) |
 
 ### Files we added (never conflict)
 | # | Date | Files | What |
