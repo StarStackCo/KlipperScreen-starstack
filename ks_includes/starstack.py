@@ -1090,7 +1090,15 @@ class StarStackRail:
         base.action_bar.set_size_request(64, -1)
         self._contain_content(base)
 
+    def setup_panel(self, panel_name=None):
+        """The first power-up setup panel while it (or a page it opened) shows, else None."""
+        if "ss_setup" in self.screen._cur_panels or panel_name == "ss_setup":
+            return self.screen.panels.get("ss_setup")
+        return None
+
     def go(self, widget, page):
+        if self.setup_panel():  # setup: the icons are only shown, not tappable (user)
+            return
         if (
             self.screen._cur_panels
             and self.screen._cur_panels[0] == page
@@ -1110,11 +1118,14 @@ class StarStackRail:
         )
         # the setup (and the pages it opens) shows STOP only: no way out of a running self-check
         # with no way back in (user, klipper-ui D-NEW setup)
-        setup = "ss_setup" in self.screen._cur_panels or panel_name == "ss_setup"
+        # From its tour on, the icons show again (not tappable, see go()) and the tour highlights
+        # the one it explains.
+        setup = self.setup_panel(panel_name)
         for page, b in self.nav.items():
-            set_class(b, "ss-rail-active", page == root)
+            on = setup.rail_mark == page if setup else page == root
+            set_class(b, "ss-rail-active", on)
             b.set_sensitive(ready)
-            b.set_visible(not setup)
+            b.set_visible(not setup or setup.rail_show)
         self.update_stop()
 
     def update_stop(self):

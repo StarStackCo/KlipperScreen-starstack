@@ -75,25 +75,12 @@ FAILS = {
         "nozzle tip. The printer's console has Klipper's message.",
     ),
 }
-# 5 tour pages: title, then (heading, text) cards (translated when shown)
+# 5 tour pages, in rail order: title, the rail button it highlights, (heading, text) cards
+# (translated when shown). The rail shows its icons but ignores taps until setup ends (user).
 TOUR = [
     (
-        "Sending a print",
-        [
-            (
-                "From OrcaSlicer",
-                "Slice with the StarStack S1 profile and click Upload and print. If the "
-                "printer is busy, the file joins the queue.",
-            ),
-            (
-                "From a USB stick",
-                "Plug it in. New files are copied over and the screen asks if you want to "
-                "print one.",
-            ),
-        ],
-    ),
-    (
         "Home",
+        "ss_home",
         [
             (
                 "Your newest file",
@@ -103,43 +90,66 @@ TOUR = [
         ],
     ),
     (
-        "The rail on the left",
+        "Print",
+        "ss_print",
         [
+            ("Every file", "Print lists the files on the printer. Tap one to print it."),
             (
-                "Home, Print, Controls, Settings",
-                "Print lists every file. Controls has temperatures, fan, filament and moving "
-                "the axes.",
-            ),
-            (
-                "STOP",
-                "Stops heaters, motors and the print at once. The print can't be resumed, so "
-                "use it only if something is wrong.",
+                "Sending files",
+                "From OrcaSlicer: slice with the StarStack S1 profile and click Upload and "
+                "print. From a USB stick: plug it in and new files are copied over.",
             ),
         ],
     ),
     (
-        "Filament",
+        "Controls",
+        "ss_controls",
         [
+            ("Temperatures, fan, moving", "Heat the nozzle and bed, run the fan, move the axes."),
             (
-                "Load, unload, change",
-                "Home and Controls have the filament buttons. The printer heats the nozzle, "
-                "then tells you what to do.",
-            ),
-            (
-                "Material",
-                "The printer remembers what's loaded and warns you if a file was sliced for "
-                "another material.",
+                "Filament",
+                "Load, unload and change filament. The printer heats the nozzle, then tells "
+                "you what to do, and remembers what's loaded.",
             ),
         ],
     ),
     (
         "Settings",
+        "ss_settings",
         [
             ("Wi-Fi, updates, screen", "Wi-Fi, one-tap updates, screen sleep and the clock."),
             ("Run this again", "Settings › Setup and tour runs this setup again."),
         ],
     ),
+    (
+        "STOP",
+        None,
+        [
+            (
+                "Bottom of the rail",
+                "Stops heaters, motors and the print at once. The print can't be resumed, so "
+                "use it only if something is wrong.",
+            ),
+        ],
+    ),
 ]
+# first print: a starter Benchy sliced with these, read from the file's settings block (user)
+FIRST_PRINT = ('filament_settings_id = "Overture PLA"', "print_settings_id = 0.20mm Balanced")
+
+
+def pick_first(paths, gcodes_dir):
+    """The first file whose slicer settings (near the end of the file) match FIRST_PRINT."""
+    for path in paths:
+        try:
+            with open(os.path.join(gcodes_dir, path), "rb") as f:
+                f.seek(0, os.SEEK_END)
+                f.seek(max(0, f.tell() - 65536))
+                tail = f.read().decode("utf-8", "ignore")
+        except OSError:
+            continue
+        if all(key in tail for key in FIRST_PRINT):
+            return path
+    return paths[0] if paths else None
 
 
 def current_zone():
@@ -169,6 +179,7 @@ class Panel(ScreenPanel):
         self.timer = None
         self.away = None  # "filament" / "wifi": a page opened from here, act on return
         self.tour_page = 0
+        self.rail_show, self.rail_mark = False, None
         self.checking = False  # self-check heaters or moves are running
         self.live = {}  # self-check: name -> live note (temperature while heating)
         self.page = ss.page_box(spacing=6)
@@ -184,6 +195,13 @@ class Panel(ScreenPanel):
     def show(self, step):
         self.step = step
         self.clear()
+        # rail: STOP only until the tour; from the tour on the icons show (not tappable), and each
+        # tour page highlights its button (user)
+        self.rail_show = step in ("tour", "filament", "print", "finished")
+        self.rail_mark = TOUR[self.tour_page][1] if step == "tour" else None
+        rail = getattr(self._screen.base_panel, "ss_rail", None)
+        if rail:
+            rail.on_panel("ss_setup")
         getattr(self, "page_" + step)()
         self.page.show_all()
 
@@ -264,9 +282,10 @@ class Panel(ScreenPanel):
         grid = ss.grid(2, spacing=6)
         btns = []
         for tz, name in ZONES:
-            b = ss.button(name, zone_now(tz, h24), css="ss-btn ss-btn-card")
+            on = tz == zone
+            css = "ss-btn ss-btn-primary" if on else "ss-btn ss-btn-card"
+            b = ss.button(("✓ " if on else "") + _(name), zone_now(tz, h24), css=css)
             b.set_size_request(-1, 50)  # 44 px read too short to tap (user)
-            ss.set_class(b, "ss-card-hl", tz == zone)
             b.connect("clicked", lambda w, z=tz: self.set_zone(z))
             btns.append(b)
         ss.grid_add(grid, btns)
@@ -373,6 +392,7 @@ class Panel(ScreenPanel):
 
     def start_check(self):
         self.results = {}
+        self.told = set()  # notice pages already OK'd this run ("heat", "home")
         t = [round(self.temp("extruder")), round(self.temp("heater_bed"))]
         ok = all(5 <= x <= 300 for x in t)  # unplugged reads far below room temperature
         self.results["sensors"] = ("ok" if ok else "fail", f"{t[0]}°C, {t[1]}°C")
@@ -390,11 +410,15 @@ class Panel(ScreenPanel):
             self.show("check_done")
         elif todo == "tap":
             self.show("check_tap")
+        elif todo in ("nozzle", "bed") and "heat" not in self.told:
+            self.show("check_heat_ok")
         elif todo in ("nozzle", "bed"):
             self.start_heat()
         elif todo == "fans":
             ss.gcode(self._screen, "M106 S255")
             self.show("check_fan")
+        elif todo == "home" and "home" not in self.told:
+            self.show("check_home_ok")
         elif todo == "home":
             self.start_home()
 
@@ -448,6 +472,39 @@ class Panel(ScreenPanel):
         self.tap_busy = False
         if self.step == "check_tap" and (result or {}).get("stepper_z") == "TRIGGERED":
             self.check_result("tap", "ok", _("You tapped it"))
+
+    def notice(self, title, body, key):
+        """A short page before the printer heats or moves: OK goes on (user)."""
+        self.page.add(ss.label(_("Self-check"), "ss-muted"))
+        self.page.add(ss.label(title, "ss-done-title", wrap=True))
+        self.text(body)
+        self.actions([(_("OK"), lambda: self.told_ok(key), "primary")])
+
+    def told_ok(self, key):
+        self.told.add(key)
+        self.next_check()
+
+    def page_check_heat_ok(self):
+        tapped = self.results.get("tap", ("",))[0] == "ok"
+        self.notice(
+            ("✓ " + _("The probe works")) if tapped else _("Next: heating"),
+            (_("It felt your tap.") + " " if tapped else "")
+            + _(
+                "Now the printer heats the nozzle to {}°C and warms the bed. Keep your hands "
+                "away from the nozzle."
+            ).format(PROBE_TEMP),
+            "heat",
+        )
+
+    def page_check_home_ok(self):
+        self.notice(
+            _("Next: homing"),
+            _(
+                "The toolhead moves to its corners and the nozzle touches the bed to find it. "
+                "Keep your hands clear."
+            ),
+            "home",
+        )
 
     def check_result(self, name, state, note):
         self.results[name] = (state, note)
@@ -609,9 +666,9 @@ class Panel(ScreenPanel):
         bad = [n for n, _l in CHECKS if self.results.get(n, ("",))[0] != "ok"]
         self.page.add(
             ss.label(
-                ("✓  " + _("Everything checks out"))
+                ("✓  " + _("Self-tests complete"))
                 if not bad
-                else _("Done, {} skipped").format(len(bad)),
+                else _("Self-tests complete, {} skipped").format(len(bad)),
                 "ss-page-title",
             )
         )
@@ -635,7 +692,8 @@ class Panel(ScreenPanel):
 
     # ------------------------------------------------------------ 5 tour
     def page_tour(self):
-        title, tips = _(TOUR[self.tour_page][0]), TOUR[self.tour_page][1]
+        title, _mark, tips = TOUR[self.tour_page]
+        title = _(title)
         head = Gtk.Box(spacing=8)
         head.pack_start(
             ss.label(_("Quick tour") + f" · {self.tour_page + 1} / {len(TOUR)}", "ss-muted"),
@@ -717,7 +775,7 @@ class Panel(ScreenPanel):
     def page_print(self):
         self.head(_("Your first print"), "print")
         starters = ss.starter_files(self._files)
-        self.first = starters[0] if starters else None
+        self.first = pick_first(starters, self._files.gcodes_path or "")
         if self.first:
             meta = self._files.get_file_info(self.first) or {}
             mat = (meta.get("filament_type", "") or "").split(";")[0]
