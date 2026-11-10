@@ -1005,8 +1005,10 @@ class StarStackRail:
             b.connect("clicked", self.go, page)
             b.connect("clicked", self.screen.remove_keyboard)
             slot(b, 48, 44)
-            b.set_no_show_all(True)  # hidden during the first power-up setup (on_panel)
-            b.show_all()
+            # hidden during the first power-up setup (on_panel). no_show_all also keeps show_all()
+            # away from the icon inside, so show it here
+            img.show()
+            b.set_no_show_all(True)
             self.nav[page] = b
         self.stop = Gtk.Button(can_focus=False)
         stop_box = Gtk.Box(
