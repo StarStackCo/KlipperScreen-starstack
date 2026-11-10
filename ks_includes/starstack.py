@@ -1117,7 +1117,7 @@ class StarStackRail:
             None,
         )
         # the setup (and the pages it opens) shows STOP only: no way out of a running self-check
-        # with no way back in (user, klipper-ui D-NEW setup)
+        # with no way back in (user, klipper-ui D-137)
         # From its tour on, the icons show again (not tappable, see go()) and the tour highlights
         # the one it explains.
         setup = self.setup_panel(panel_name)

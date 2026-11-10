@@ -1,4 +1,4 @@
-# STARSTACK-ADDED: first power-up setup (FORK_CHANGES.md #56, klipper-ui D-114, D-NEW setup)
+# STARSTACK-ADDED: first power-up setup (FORK_CHANGES.md #56, klipper-ui D-114, D-137)
 # Welcome, time zone, Wi-Fi, self-check, tour, filament, first print; every step can be
 # skipped. Opens by itself once on a new printer (starstack.offer_setup) and from Settings.
 # Design: claude.ai canvas "First power-up and factory reset". The rail keeps its normal buttons
@@ -304,7 +304,7 @@ class Panel(ScreenPanel):
         )
 
     def set_zone(self, zone):
-        # needs install.sh's polkit rule (klipper-ui D-NEW first power-up); without it timedatectl
+        # needs install.sh's polkit rule (klipper-ui D-137); without it timedatectl
         # asks for a password, which a touchscreen can't give
         try:
             r = subprocess.run(
