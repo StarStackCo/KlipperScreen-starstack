@@ -153,12 +153,10 @@ def pick_first(paths, gcodes_dir):
 
 
 def current_zone():
-    try:
-        with open("/etc/timezone") as f:
-            return f.read().strip()
-    except OSError:
-        path = os.path.realpath("/etc/localtime")
-        return path.split("zoneinfo/", 1)[1] if "zoneinfo/" in path else ""
+    # /etc/localtime, not /etc/timezone: timedatectl only updates the link, and on the S1
+    # /etc/timezone still said Europe/London from the image (user: chosen zone never showed)
+    path = os.path.realpath("/etc/localtime")
+    return path.split("zoneinfo/", 1)[1] if "zoneinfo/" in path else ""
 
 
 def zone_now(zone, h24):
