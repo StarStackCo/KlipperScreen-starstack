@@ -277,7 +277,6 @@ class Panel(ScreenPanel):
         )
         self.actions(
             [
-                (_("Skip setup"), self.finish, "outline"),
                 (_("Start"), lambda: self.show("time"), "primary"),
             ]
         )
