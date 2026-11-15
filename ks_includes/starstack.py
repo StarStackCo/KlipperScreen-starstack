@@ -487,10 +487,16 @@ class Pager:
         self.height = 0
         self.want_row = None  # show_row() before the first measurement: applied on render
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, vexpand=True)
-        self.area = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, vexpand=True)
+        # The list is an overlay so it adds nothing to the area's minimum height: otherwise a list
+        # taller than the free space stretches the area, the area then measures as that tall, and
+        # the page overflows into a scroll bar (4 queued jobs). Now the area is the free space only.
+        self.area = Gtk.Overlay(vexpand=True)
+        self.area.add(Gtk.Box())
         self.area.connect("size-allocate", self._allocated)
-        self.list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=spacing)
-        self.area.pack_start(self.list, False, False, 0)
+        self.list = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=spacing, valign=Gtk.Align.START
+        )
+        self.area.add_overlay(self.list)
         self.box.pack_start(self.area, True, True, 0)
         self.foot = Gtk.Box(spacing=8)
         css = "ss-btn ss-btn-outline ss-btn-pager" + (" ss-btn-pager-sm" if compact else "")
@@ -589,8 +595,8 @@ class Pager:
                 return
 
     def _allocated(self, widget, alloc):
-        # Measure only while the arrow bar is hidden (the full space); with the bar shown the
-        # list's own height keeps the area from shrinking, so later sizes aren't the free space.
+        # Measure only while the arrow bar is hidden: that is the full space, and pages() takes the
+        # bar's FOOT off itself when it needs one.
         if self.foot.get_visible():
             return
         if alloc.height != self.height:

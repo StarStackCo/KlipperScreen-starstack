@@ -10,7 +10,8 @@ class Panel(ScreenPanel):
     def __init__(self, screen, title, **kwargs):
         super().__init__(screen, title)
         page = ss.page_box(spacing=6)
-        page.pack_start(ss.label(_("Queue"), "ss-page-title"), False, False, 0)
+        # no "Queue" title: the "Up next" line says it, and the list needs the 24 px so 4 jobs
+        # fit without arrows and longer queues get 3 per page
         mode = "busy" if ss.is_printing(self._printer) else "start"
         self.view = QueueView(self, mode=mode, on_close=self._screen._menu_go_back)
         page.pack_start(self.view.box, True, True, 0)
