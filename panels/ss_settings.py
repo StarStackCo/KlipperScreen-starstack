@@ -6,6 +6,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
 
+from ks_includes import ss_probe_check
 from ks_includes import starstack as ss
 from ks_includes.screen_panel import ScreenPanel
 
@@ -98,6 +99,8 @@ class Panel(ScreenPanel):
                 (_("Move axes"), _("fine steps"), lambda: self.open("ss_move", _("Move"))),
                 (_("Fans"), "", lambda: self.open("ss_fans", _("Fans"))),
                 (_("Bed mesh"), "", lambda: self.open("ss_bed_mesh", _("Bed mesh"))),
+                # Z homing check from rising heights (klipper-ui D-NEW probe check, B-24)
+                (_("Probe check"), _("3 min"), lambda: ss_probe_check.ask(self._screen)),
                 (_("Input shaper"), "", lambda: self.open("ss_shaper", _("Input shaper"))),
                 (_("Restart firmware"), "", self.ask_restart),
             ]:

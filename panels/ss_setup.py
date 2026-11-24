@@ -15,6 +15,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk
 
+from ks_includes import ss_probe_check
 from ks_includes import starstack as ss
 from ks_includes.screen_panel import ScreenPanel
 
@@ -70,11 +71,8 @@ FAILS = {
         "The part fan isn't spinning",
         "Turn the printer off, then check nothing is stuck in the fan and its cable is plugged in.",
     ),
-    "home": (
-        "Homing didn't finish",
-        "Check nothing blocks the nozzle or the bed, and that no plastic is stuck to the "
-        "nozzle tip. The printer's console has Klipper's message.",
-    ),
+    # homing runs klipper-ui's probe check (D-NEW probe check); its fix steps are the user's
+    "home": (ss_probe_check.FAIL_TITLE, ss_probe_check.FIX),
 }
 # 5 tour pages, in rail order: title, the rail button it highlights, (heading, text) cards
 # (translated when shown). The rail shows its icons but ignores taps until setup ends (user).
@@ -552,8 +550,9 @@ class Panel(ScreenPanel):
         self.notice(
             _("Next: homing"),
             _(
-                "The toolhead moves to its corners and the nozzle touches the bed to find it. "
-                "Keep your hands clear."
+                "The toolhead moves to its corners, then the nozzle finds the bed 5 times from "
+                "higher each time (about 3 minutes). Watch the first time it comes down: you'll "
+                "be asked if it touched the bed. Keep your hands clear."
             ),
             "home",
         )
@@ -680,12 +679,35 @@ class Panel(ScreenPanel):
         def done(result):
             if not self.checking or run != self.run:  # stopped, left or a new run meanwhile
                 return
-            self.results["home"] = ("ok", "") if result is not None else ("fail", "")
-            self.next_check()
+            if result["ok"]:
+                self.show("check_home_ask")
+            else:
+                self.check_result("home", "fail", result["reason"])
 
-        # G28 heats the nozzle to clean_temp before probing Z (_PROBE_HOT, B-19); it is already
-        # there from the heater check, so this is quick. The reply comes when homing has finished.
-        ss.request(self._screen, "printer.gcode.script", {"script": "G28"}, done)
+        # The probe check homes (G28 heats the nozzle to clean_temp first, _PROBE_HOT, B-19; it is
+        # already there from the heater check), then homes Z from 5 to 40 mm and checks each
+        # against the motor steps and a probe (klipper-ui D-NEW probe check, B-24).
+        ss_probe_check.run(done)
+
+    def page_check_home_ask(self):
+        # the script can't see whether the first home reached the bed: only the user can
+        self.page.add(ss.label(_("Self-check · Homing"), "ss-muted"))
+        self.page.add(
+            ss.label(_("Did the nozzle touch the bed the first time?"), "ss-done-title", wrap=True)
+        )
+        self.text(_("All later touches matched it. They only count if the first one was real."))
+        self.actions(
+            [
+                (
+                    _("No"),
+                    lambda: self.check_result(
+                        "home", "fail", _("The first touch didn't reach the bed.")
+                    ),
+                    "outline",
+                ),
+                (_("Yes"), lambda: self.check_result("home", "ok", ""), "primary"),
+            ]
+        )
 
     def stop_check(self):
         self.end_check()
