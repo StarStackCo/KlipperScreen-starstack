@@ -551,9 +551,9 @@ class Panel(ScreenPanel):
         self.notice(
             _("Next: homing"),
             _(
-                "The toolhead moves to its corners, then the nozzle finds the bed 5 times from "
-                "higher each time (about 3 minutes). Watch the first time it comes down: you'll "
-                "be asked if it touched the bed. Keep your hands clear."
+                "The toolhead moves to its corners and the nozzle finds the bed, then Z rises near "
+                "the top and finds it again (about 2 minutes). Watch the first time it comes down: "
+                "you'll be asked if it touched the bed. Keep your hands clear."
             ),
             "home",
         )
@@ -686,7 +686,7 @@ class Panel(ScreenPanel):
                 self.check_result("home", "fail", result["reason"])
 
         # The probe check homes (G28 heats the nozzle to clean_temp first, _PROBE_HOT, B-19; it is
-        # already there from the heater check), then homes Z from 5 to 40 mm and checks each
+        # already there from the heater check), then homes Z from near the top and checks it
         # against the motor steps and a probe (klipper-ui D-NEW probe check, B-24).
         ss_probe_check.run(done)
 
