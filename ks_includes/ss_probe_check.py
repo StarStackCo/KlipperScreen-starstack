@@ -1,6 +1,6 @@
 # STARSTACK-ADDED: probe check runner (FORK_CHANGES.md #59, klipper-ui D-NEW probe check)
-# Runs klipper-ui's scripts/probe_check.py on the Pi: a full home, then Z lifts near the top and
-# homes all the way down, checked against the motor steps and a probe (B-24). The script talks
+# Runs klipper-ui's scripts/probe_check.py on the Pi: a full home, then Z homes from 10, 40 and
+# near the top, each checked against the motor steps and a probe (B-24). The script talks
 # to Moonraker itself; this starts it, waits off the GTK thread and hands its JSON result back.
 # One run at a time; the setup self-check stops it when the check is stopped or left. Used by
 # setup and by Settings > Advanced > Probe check.
@@ -51,7 +51,7 @@ def stop():
 
 
 def run(on_done):
-    """on_done({"ok": bool, "reason": str}) on the GTK main thread, about 2 minutes later."""
+    """on_done({"ok": bool, "reason": str}) on the GTK main thread, about 3 minutes later."""
     global _proc
     if running():
         GLib.idle_add(on_done, {"ok": False, "reason": _("A probe check is already running.")})
@@ -87,7 +87,7 @@ def ask(screen):
     def go():
         # a short message, not a dialog: the result later must not close whatever is open then
         screen.show_popup_message(
-            _("Probe check running, about 2 minutes. Watch the first touch reaches the bed."), 3
+            _("Probe check running, about 3 minutes. Watch the first touch reaches the bed."), 3
         )
         run(lambda r: done(screen, r))
 
@@ -95,9 +95,9 @@ def ask(screen):
         screen,
         _("Run the probe check?"),
         _(
-            "The nozzle heats to 150°C and the printer homes, then Z rises near the top and homes "
-            "all the way down at the back right. Keep your hands clear. To stop it, use STOP on "
-            "the left."
+            "The nozzle heats to 150°C and the printer homes, then Z homes again from higher and "
+            "higher, up near the top, at the back right. Keep your hands clear. To stop it, use "
+            "STOP on the left."
         ),
         _("Run"),
         go,
