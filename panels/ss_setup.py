@@ -670,7 +670,7 @@ class Panel(ScreenPanel):
             "fans", "ok" if yes else "fail", _("You confirmed") if yes else _("You said no")
         )
 
-    def start_home(self):
+    def start_home(self, part=1):
         self.checking = True
         self.live = {"home": _("running")}
         self.show("check_run")
@@ -680,15 +680,19 @@ class Panel(ScreenPanel):
         def done(result):
             if not self.checking or run != self.run:  # stopped, left or a new run meanwhile
                 return
-            if result["ok"]:
+            if not result["ok"]:
+                self.check_result("home", "fail", result["reason"])
+            elif part == 1:
                 self.show("check_home_ask")
             else:
-                self.check_result("home", "fail", result["reason"])
+                self.check_result("home", "ok", "")
 
-        # The probe check homes (G28 heats the nozzle to clean_temp first, _PROBE_HOT, B-19; it is
-        # already there from the heater check), then homes Z from 10, 40 and near the top and
-        # checks each against the motor steps and a probe (klipper-ui D-141, B-24).
-        ss_probe_check.run(done)
+        # The probe check in two parts (klipper-ui D-141, B-24). Part 1: G28 (heats the nozzle to
+        # clean_temp first, _PROBE_HOT, B-19; already there from the heater check), then homes
+        # from Z 10 and 40, each checked against the motor steps and a probe. Part 2, only after
+        # the user saw the first touch reach the bed: the home from near the top, since a false
+        # first zero would put the head that much higher.
+        ss_probe_check.run(done, part)
 
     def page_check_home_ask(self):
         # the script can't see whether the first home reached the bed: only the user can
@@ -696,7 +700,7 @@ class Panel(ScreenPanel):
         self.page.add(
             ss.label(_("Did the nozzle touch the bed the first time?"), "ss-done-title", wrap=True)
         )
-        self.text(_("All later touches matched it. They only count if the first one was real."))
+        self.text(_("If yes, Z rises near the top and finds the bed once more."))
         self.actions(
             [
                 (
@@ -706,7 +710,7 @@ class Panel(ScreenPanel):
                     ),
                     "outline",
                 ),
-                (_("Yes"), lambda: self.check_result("home", "ok", ""), "primary"),
+                (_("Yes"), lambda: self.start_home(2), "primary"),
             ]
         )
 

@@ -1,9 +1,10 @@
 # STARSTACK-ADDED: probe check runner (FORK_CHANGES.md #59, klipper-ui D-141)
-# Runs klipper-ui's scripts/probe_check.py on the Pi: a full home, then Z homes from 10, 40 and
-# near the top, each checked against the motor steps and a probe (B-24). The script talks
-# to Moonraker itself; this starts it, waits off the GTK thread and hands its JSON result back.
-# One run at a time; the setup self-check stops it when the check is stopped or left. Used by
-# setup and by Settings > Advanced > Probe check.
+# Runs klipper-ui's scripts/probe_check.py on the Pi in two parts: a full home and homes from
+# Z 10 and 40, then (only after the user saw the first touch reach the bed) the home from near
+# the top, each checked against the motor steps and a probe (B-24). The script talks to Moonraker
+# itself; this starts it, waits off the GTK thread and hands its JSON result back. One run at a
+# time; the setup self-check stops it when the check is stopped or left. Used by setup and by
+# Settings > Advanced > Probe check.
 import json
 import logging
 import os
@@ -50,8 +51,10 @@ def stop():
         _proc.terminate()
 
 
-def run(on_done):
-    """on_done({"ok": bool, "reason": str}) on the GTK main thread, about 3 minutes later."""
+def run(on_done, part):
+    """part 1: full home, homes from Z 10 and 40. part 2, only after the user saw the first touch
+    reach the bed: the home from near the top (a false first zero would put the head that much
+    higher, klipper-ui D-141). on_done({"ok", "reason"}) on the GTK thread 1 to 2 minutes later."""
     global _proc
     if running():
         GLib.idle_add(on_done, {"ok": False, "reason": _("A probe check is already running.")})
@@ -60,7 +63,10 @@ def run(on_done):
         GLib.idle_add(on_done, {"ok": False, "reason": "probe_check.py missing: update klipper-ui"})
         return
     proc = _proc = subprocess.Popen(
-        ["python3", SCRIPT, "--json"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        ["python3", SCRIPT, "--json", f"--part{part}"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
     )
 
     def work():
@@ -69,14 +75,14 @@ def run(on_done):
         except Exception as e:  # timeout: end it, never hang the page
             proc.kill()
             out, err = "", str(e)
-        logging.info("probe check output:\n%s%s", out[-3000:], err[-1000:])
+        logging.info("probe check part %s output:\n%s%s", part, out[-3000:], err[-1000:])
         GLib.idle_add(on_done, parse(out, err))
 
     threading.Thread(target=work, daemon=True).start()
 
 
 def ask(screen):
-    """Settings > Advanced > Probe check: confirm, run, then the result."""
+    """Settings > Advanced > Probe check: confirm, part 1, the first-touch question, part 2."""
     if ss.is_printing(screen.printer):
         screen.show_popup_message(_("Not while printing."), 2)
         return
@@ -87,9 +93,9 @@ def ask(screen):
     def go():
         # a short message, not a dialog: the result later must not close whatever is open then
         screen.show_popup_message(
-            _("Probe check running, about 3 minutes. Watch the first touch reaches the bed."), 3
+            _("Probe check running. Watch the first time the nozzle comes down."), 3
         )
-        run(lambda r: done(screen, r))
+        run(lambda r: after_part1(screen, r), 1)
 
     ss.confirm(
         screen,
@@ -104,20 +110,32 @@ def ask(screen):
     )
 
 
+def after_part1(screen, r):
+    if not r["ok"]:
+        fail(screen, r["reason"])
+        return
+    ss.confirm(
+        screen,
+        _("Did the nozzle touch the bed the first time it came down?"),
+        r["reason"] + "\n\n" + _("If yes, Z rises near the top and homes once more."),
+        _("Yes, it touched"),
+        lambda: part2(screen),
+        no_label=_("Stop"),
+        alt_label=_("No"),
+        on_alt=lambda: fail(screen, _("The first touch didn't reach the bed.")),
+    )
+
+
+def part2(screen):
+    screen.show_popup_message(_("Last step: Z rises near the top and homes once more."), 3)
+    run(lambda r: done(screen, r), 2)
+
+
 def done(screen, r):
     if not r["ok"]:
         fail(screen, r["reason"])
         return
-    # the script can't see the first home: only the user knows it touched the bed
-    ss.confirm(
-        screen,
-        "✓ " + _("Probe check passed"),
-        r["reason"] + "\n\n" + _("Did the nozzle touch the bed the first time it came down?"),
-        _("No"),
-        lambda: fail(screen, _("The first touch didn't reach the bed.")),
-        kind="warning",
-        no_label=_("Yes, it touched"),
-    )
+    ss.info(screen, "✓ " + _("Probe check passed"), r["reason"])
 
 
 def fail(screen, reason):
