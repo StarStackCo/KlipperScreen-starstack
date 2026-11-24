@@ -1,4 +1,4 @@
-# STARSTACK-ADDED: first power-up setup (FORK_CHANGES.md #56, klipper-ui D-114, D-137)
+# STARSTACK-ADDED: first power-up setup (FORK_CHANGES.md #60, klipper-ui D-114, D-137)
 # Welcome, time zone, Wi-Fi, self-check, tour, filament, first print; every step can be
 # skipped. Opens by itself once on a new printer (starstack.offer_setup) and from Settings.
 # Design: claude.ai canvas "First power-up and factory reset". The rail shows STOP only until the
