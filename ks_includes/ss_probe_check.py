@@ -21,7 +21,7 @@ FIX = (
     "1. Turn the printer off and unplug it.\n"
     "2. Check the heatsink and nozzle screws are tight and no plastic is on the nozzle.\n"
     "3. Check the toolhead cable has slack with the head at the front left and Z down.\n"
-    "4. Check nothing is stuck to the bed at the back right.\n"
+    "4. Check nothing is stuck to the bed at the back left.\n"
     "5. Plug it in, turn it on and run the self-check again."
 )
 _proc = None  # the running script, so a second run is refused and Stop can end it
@@ -96,7 +96,7 @@ def ask(screen):
         _("Run the probe check?"),
         _(
             "The nozzle heats to 150°C and the printer homes, then Z homes again from higher and "
-            "higher, up near the top, at the back right. Keep your hands clear. To stop it, use "
+            "higher, up near the top, at the back left. Keep your hands clear. To stop it, use "
             "STOP on the left."
         ),
         _("Run"),
