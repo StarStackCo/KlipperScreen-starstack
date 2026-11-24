@@ -15,6 +15,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk
 
+from ks_includes import ss_probe_check
 from ks_includes import starstack as ss
 from ks_includes.screen_panel import ScreenPanel
 
@@ -70,11 +71,8 @@ FAILS = {
         "The part fan isn't spinning",
         "Turn the printer off, then check nothing is stuck in the fan and its cable is plugged in.",
     ),
-    "home": (
-        "Homing didn't finish",
-        "Check nothing blocks the nozzle or the bed, and that no plastic is stuck to the "
-        "nozzle tip. The printer's console has Klipper's message.",
-    ),
+    # homing runs klipper-ui's probe check (D-141); its fix steps are the user's
+    "home": (ss_probe_check.FAIL_TITLE, ss_probe_check.FIX),
 }
 # 5 tour pages, in rail order: title, the rail button it highlights, (heading, text) cards
 # (translated when shown). The rail shows its icons but ignores taps until setup ends (user).
@@ -448,6 +446,7 @@ class Panel(ScreenPanel):
             self.start_home()
 
     def end_check(self):
+        ss_probe_check.stop()  # stopped, failed or left: the homing script sends nothing more
         self.checking = False
         self.run += 1
         self.stop_timer()
@@ -552,8 +551,9 @@ class Panel(ScreenPanel):
         self.notice(
             _("Next: homing"),
             _(
-                "The toolhead moves to its corners and the nozzle touches the bed to find it. "
-                "Keep your hands clear."
+                "The toolhead moves to its corners and the nozzle finds the bed, then finds it "
+                "again from higher and higher, up near the top (about 3 minutes). Watch the first "
+                "time it comes down: you'll be asked if it touched the bed. Keep your hands clear."
             ),
             "home",
         )
@@ -670,7 +670,7 @@ class Panel(ScreenPanel):
             "fans", "ok" if yes else "fail", _("You confirmed") if yes else _("You said no")
         )
 
-    def start_home(self):
+    def start_home(self, part=1):
         self.checking = True
         self.live = {"home": _("running")}
         self.show("check_run")
@@ -680,12 +680,39 @@ class Panel(ScreenPanel):
         def done(result):
             if not self.checking or run != self.run:  # stopped, left or a new run meanwhile
                 return
-            self.results["home"] = ("ok", "") if result is not None else ("fail", "")
-            self.next_check()
+            if not result["ok"]:
+                self.check_result("home", "fail", result["reason"])
+            elif part == 1:
+                self.show("check_home_ask")
+            else:
+                self.check_result("home", "ok", "")
 
-        # G28 heats the nozzle to clean_temp before probing Z (_PROBE_HOT, B-19); it is already
-        # there from the heater check, so this is quick. The reply comes when homing has finished.
-        ss.request(self._screen, "printer.gcode.script", {"script": "G28"}, done)
+        # The probe check in two parts (klipper-ui D-141, B-24). Part 1: G28 (heats the nozzle to
+        # clean_temp first, _PROBE_HOT, B-19; already there from the heater check), then homes
+        # from Z 10 and 40, each checked against the motor steps and a probe. Part 2, only after
+        # the user saw the first touch reach the bed: the home from near the top, since a false
+        # first zero would put the head that much higher.
+        ss_probe_check.run(done, part)
+
+    def page_check_home_ask(self):
+        # the script can't see whether the first home reached the bed: only the user can
+        self.page.add(ss.label(_("Self-check · Homing"), "ss-muted"))
+        self.page.add(
+            ss.label(_("Did the nozzle touch the bed the first time?"), "ss-done-title", wrap=True)
+        )
+        self.text(_("If yes, Z rises near the top and finds the bed once more."))
+        self.actions(
+            [
+                (
+                    _("No"),
+                    lambda: self.check_result(
+                        "home", "fail", _("The first touch didn't reach the bed.")
+                    ),
+                    "outline",
+                ),
+                (_("Yes"), lambda: self.start_home(2), "primary"),
+            ]
+        )
 
     def stop_check(self):
         self.end_check()
