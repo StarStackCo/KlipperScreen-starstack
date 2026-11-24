@@ -1,4 +1,4 @@
-# STARSTACK-ADDED: probe check runner (FORK_CHANGES.md #59, klipper-ui D-NEW probe check)
+# STARSTACK-ADDED: probe check runner (FORK_CHANGES.md #59, klipper-ui D-141)
 # Runs klipper-ui's scripts/probe_check.py on the Pi: a full home, then Z homes from 10, 40 and
 # near the top, each checked against the motor steps and a probe (B-24). The script talks
 # to Moonraker itself; this starts it, waits off the GTK thread and hands its JSON result back.
@@ -15,7 +15,7 @@ from gi.repository import GLib
 from ks_includes import starstack as ss
 
 SCRIPT = os.path.expanduser("~/klipper-ui/scripts/probe_check.py")
-# What to fix after a failed check (user, klipper-ui D-NEW probe check); translated when shown
+# What to fix after a failed check (user, klipper-ui D-141); translated when shown
 FAIL_TITLE = "Homing check failed"
 FIX = (
     "1. Turn the printer off and unplug it.\n"

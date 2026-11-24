@@ -71,7 +71,7 @@ FAILS = {
         "The part fan isn't spinning",
         "Turn the printer off, then check nothing is stuck in the fan and its cable is plugged in.",
     ),
-    # homing runs klipper-ui's probe check (D-NEW probe check); its fix steps are the user's
+    # homing runs klipper-ui's probe check (D-141); its fix steps are the user's
     "home": (ss_probe_check.FAIL_TITLE, ss_probe_check.FIX),
 }
 # 5 tour pages, in rail order: title, the rail button it highlights, (heading, text) cards
@@ -687,7 +687,7 @@ class Panel(ScreenPanel):
 
         # The probe check homes (G28 heats the nozzle to clean_temp first, _PROBE_HOT, B-19; it is
         # already there from the heater check), then homes Z from 10, 40 and near the top and
-        # checks each against the motor steps and a probe (klipper-ui D-NEW probe check, B-24).
+        # checks each against the motor steps and a probe (klipper-ui D-141, B-24).
         ss_probe_check.run(done)
 
     def page_check_home_ask(self):
