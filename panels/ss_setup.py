@@ -446,6 +446,7 @@ class Panel(ScreenPanel):
             self.start_home()
 
     def end_check(self):
+        ss_probe_check.stop()  # stopped, failed or left: the homing script sends nothing more
         self.checking = False
         self.run += 1
         self.stop_timer()

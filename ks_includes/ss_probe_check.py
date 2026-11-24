@@ -1,8 +1,9 @@
 # STARSTACK-ADDED: probe check runner (FORK_CHANGES.md #59, klipper-ui D-NEW probe check)
 # Runs klipper-ui's scripts/probe_check.py on the Pi: Z homes at the homing point from 5 to 40 mm,
 # each checked against the motor steps and a probe (B-24). The script talks to Moonraker itself;
-# this starts it off the GTK thread and hands its JSON result back. Used by the setup self-check
-# and by Settings > Advanced > Probe check.
+# this starts it, waits off the GTK thread and hands its JSON result back. One run at a time; the
+# setup self-check stops it when the check is stopped or left. Used by setup and by
+# Settings > Advanced > Probe check.
 import json
 import logging
 import os
@@ -23,6 +24,7 @@ FIX = (
     "4. Check nothing is stuck to the bed at the back right.\n"
     "5. Plug it in, turn it on and run the self-check again."
 )
+_proc = None  # the running script, so a second run is refused and Stop can end it
 
 
 def parse(stdout, stderr=""):
@@ -38,23 +40,37 @@ def parse(stdout, stderr=""):
     return {"ok": False, "reason": last}
 
 
+def running():
+    return _proc is not None and _proc.poll() is None
+
+
+def stop():
+    """End the script: it sends no more G-code (a move already sent still finishes)."""
+    if running():
+        _proc.terminate()
+
+
 def run(on_done):
     """on_done({"ok": bool, "reason": str}) on the GTK main thread, about 3 minutes later."""
+    global _proc
+    if running():
+        GLib.idle_add(on_done, {"ok": False, "reason": _("A probe check is already running.")})
+        return
+    if not os.path.exists(SCRIPT):
+        GLib.idle_add(on_done, {"ok": False, "reason": "probe_check.py missing: update klipper-ui"})
+        return
+    proc = _proc = subprocess.Popen(
+        ["python3", SCRIPT, "--json"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
 
     def work():
-        if not os.path.exists(SCRIPT):
-            result = {"ok": False, "reason": "probe_check.py missing: update klipper-ui"}
-        else:
-            try:
-                p = subprocess.run(
-                    ["python3", SCRIPT, "--json"], capture_output=True, text=True, timeout=900
-                )
-                logging.info("probe check output:\n%s%s", p.stdout[-3000:], p.stderr[-1000:])
-                result = parse(p.stdout, p.stderr)
-            except Exception as e:  # timeout or no python3: report it, never hang the page
-                logging.exception("probe check")
-                result = {"ok": False, "reason": str(e)}
-        GLib.idle_add(on_done, result)
+        try:
+            out, err = proc.communicate(timeout=900)
+        except Exception as e:  # timeout: end it, never hang the page
+            proc.kill()
+            out, err = "", str(e)
+        logging.info("probe check output:\n%s%s", out[-3000:], err[-1000:])
+        GLib.idle_add(on_done, parse(out, err))
 
     threading.Thread(target=work, daemon=True).start()
 
@@ -64,14 +80,14 @@ def ask(screen):
     if ss.is_printing(screen.printer):
         screen.show_popup_message(_("Not while printing."), 2)
         return
+    if running():
+        screen.show_popup_message(_("A probe check is already running."), 2)
+        return
 
     def go():
-        ss.info(
-            screen,
-            _("Probe check running"),
-            _("About 3 minutes. Watch the first time the nozzle comes down: it must touch the bed.")
-            + "\n"
-            + _("To stop, use STOP on the left."),
+        # a short message, not a dialog: the result later must not close whatever is open then
+        screen.show_popup_message(
+            _("Probe check running, about 3 minutes. Watch the first touch reaches the bed."), 3
         )
         run(lambda r: done(screen, r))
 
@@ -80,7 +96,7 @@ def ask(screen):
         _("Run the probe check?"),
         _(
             "The nozzle heats to 150°C, then Z homes 5 times at the back right, from higher each "
-            "time. Keep your hands clear."
+            "time. Keep your hands clear. To stop it, use STOP on the left."
         ),
         _("Run"),
         go,
@@ -88,7 +104,6 @@ def ask(screen):
 
 
 def done(screen, r):
-    ss.close_dialog(screen)
     if not r["ok"]:
         fail(screen, r["reason"])
         return
