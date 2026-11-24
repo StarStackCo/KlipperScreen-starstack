@@ -27,8 +27,9 @@ def signal_icon(level):
 
 
 class Panel(ScreenPanel):
-    def __init__(self, screen, title, **kwargs):
+    def __init__(self, screen, title, ss_done=False, **kwargs):
         super().__init__(screen, title)
+        self.done = ss_done  # opened from the first power-up setup: a Done button goes back to it
         self.nm = None
         self.timer = None
         self.shown = None  # what the list currently shows, to rebuild only on changes
@@ -98,6 +99,12 @@ class Panel(ScreenPanel):
         self.switch.add(self.track)
         self.switch.connect("clicked", self.toggle_wifi)
         head.pack_end(self.switch, False, False, 0)
+        if self.done:
+            done = ss.button(_("Done"), css="ss-btn ss-btn-primary")
+            done.set_hexpand(False)
+            done.set_size_request(72, 44)
+            done.connect("clicked", lambda w: self._screen._menu_go_back())
+            head.pack_end(done, False, False, 0)
         page.pack_start(head, False, False, 0)
         self.status = ss.label("", "ss-muted", wrap=True)
         page.pack_start(self.status, False, False, 0)

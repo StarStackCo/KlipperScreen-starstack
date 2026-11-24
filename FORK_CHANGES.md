@@ -55,8 +55,8 @@ After merging a new upstream base, update `tools/starstack/UPSTREAM_BASE` to the
 When merging upstream: conflicts can only happen inside `STARSTACK-CHANGE` blocks. Re-apply the block's intent on top of the new upstream code and keep the same `#n`.
 
 ## Change list
-Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: the code carries
-`STARSTACK-CHANGE #n BEGIN/END` markers with the same number. Numbers **20–47 and 51–53** are files we added
+Numbers **2–19, 48–50 and 56** are edits inside upstream KlipperScreen files: the code carries
+`STARSTACK-CHANGE #n BEGIN/END` markers with the same number. Numbers **20–47, 51–55 and 57–60** are files we added
 (each starts with a `STARSTACK-ADDED` note). `python tools/starstack/check_markers.py` verifies this.
 
 ### Edits inside upstream files (merge conflicts can only happen here)
@@ -89,12 +89,12 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 |---|---|---|---|
 | 1 | 2026-10-04 | `FORK_CHANGES.md` | This file |
 | 3 | 2026-10-04 | `styles/starstack/` | Theme. **Generated** by `tools/starstack/build_theme.py`, never hand-edit |
-| 20 | 2026-10-04 | `ks_includes/starstack.py` | Shared helpers, materials, Advanced-mode store, in-page dialogs, **rail + STOP**, content guard (no page can push STOP off-screen), color-change scanner; Print confirmation: **Print <file name>?** with material and time for a file picked by hand (klipper-ui D-124, D-126), **Is the bed clear?** for Print again and retry (klipper-ui D-124) |
+| 20 | 2026-10-04 | `ks_includes/starstack.py` | Shared helpers, materials, Advanced-mode store, in-page dialogs, **rail + STOP**, content guard (no page can push STOP off-screen), color-change scanner; Print confirmation: **Print <file name>?** with material and time for a file picked by hand (klipper-ui D-124, D-126), **Is the bed clear?** for Print again and retry (klipper-ui D-124). Rail during the first power-up setup: STOP only until its tour, then the icons too, not tappable (klipper-ui D-137). |
 | 21 | 2026-10-04 | `ks_includes/starstack_devtools.py` | Bench test helper. **Off** unless `~/.starstack_dev` exists |
-| 22 | 2026-10-04 | `panels/ss_home.py` | Home: idle / printing / paused / done, time left and finish time on the job line, warnings only after the print and they can be hidden (klipper-ui D-114), color-change countdown, reheat-then-resume; job queue: Next up line in the job card while printing, Up next card when idle, print done with jobs waiting = queue + filament check (klipper-ui D-111). 2026-11-09: Change filament starts the unload at once (klipper-ui D-126) |
+| 22 | 2026-10-04 | `panels/ss_home.py` | Home: idle / printing / paused / done, time left and finish time on the job line, warnings only after the print and they can be hidden (klipper-ui D-114), color-change countdown, reheat-then-resume; job queue: Next up line in the job card while printing, Up next card when idle, print done with jobs waiting = queue + filament check (klipper-ui D-111). 2026-11-09: Change filament starts the unload at once (klipper-ui D-126). Opens the first power-up setup once on a new printer (klipper-ui D-137). |
 | 23 | 2026-10-04 | `panels/ss_print.py` | File grid, sort, pager; while printing a tapped file is offered for the queue (klipper-ui D-111) |
 | 24 | 2026-10-04 | `panels/ss_controls.py` | Temps, fan, filament (remembered), movement (locked while printing) |
-| 25 | 2026-10-04 | `panels/ss_settings.py` | Settings + Advanced mode |
+| 25 | 2026-10-04 | `panels/ss_settings.py` | Settings + Advanced mode. Setup and tour row (klipper-ui D-137). Advanced: Probe check row (#59, klipper-ui D-141). |
 | 26 | 2026-10-04 | `panels/ss_dialog.py`, `panels/ss_adjust.py` | In-page confirmations and value adjuster |
 | 27 | 2026-10-04 | `panels/ss_cancel_object.py` | Bed map + part list |
 | 28 | 2026-10-04 | `panels/ss_filament.py` | Guided load / unload / change filament. 2026-11-08: Prime mode, and walk-away loading (Grab while heating, loads by itself when hot, heater off) (klipper-ui D-116). 2026-11-08: heater timeout shown with Heat again, Unloaded state, change with nothing loaded goes to loading (klipper-ui D-117). 2026-11-09: `swap` mode for Home's Change filament: unloads at once, then asks for the new one (klipper-ui D-126) |
@@ -105,7 +105,7 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 33 | 2026-10-05 | `.github/workflows/starstack-ci.yml`, `starstack-upstream-sync.yml` | CI checks + optional monthly upstream merge PR |
 | 34 | 2026-10-05 | `TRADEMARKS.md` | StarStack name/logo are not covered by the AGPL license |
 | 35 | 2026-10-05 | `panels/ss_console.py` | Console with the command box at the top (stock one has it at the bottom edge); opened from Settings › Advanced |
-| 36 | 2026-10-05 | `panels/ss_network.py` | StarStack Wi-Fi page (klipper-ui B-6): one row per network, tap to connect, password with the StarStack keyboard, Disconnect/Forget in `ss_dialog` (now with an optional third button). Upstream's `sdbus_nm` backend unchanged; enterprise Wi-Fi via the stock page |
+| 36 | 2026-10-05 | `panels/ss_network.py` | StarStack Wi-Fi page (klipper-ui B-6): one row per network, tap to connect, password with the StarStack keyboard, Disconnect/Forget in `ss_dialog` (now with an optional third button). Upstream's `sdbus_nm` backend unchanged; enterprise Wi-Fi via the stock page. Done button when opened from the setup (klipper-ui D-137). |
 | 37 | 2026-10-05 | `panels/ss_usb.py` | "USB stick: N new files copied" prompt with "Print this one now?" for the newest file (klipper-ui D-065), or "Add to queue" while printing (D-111). Opened by `StarStackRail` when klipper-ui's USB import writes `gcodes/.starstack/usb_import.json` |
 | 38 | 2026-10-06 | `panels/ss_choose.py` | Generic "pick one" page (`ss.choose()`), pages with arrows |
 | 39 | 2026-10-06 | `panels/ss_screen.py` | Screen & language (replaces stock settings): screen sleep, sleep while printing, 24 h clock, language, **Confirm emergency stop** (StarStack setting, default ON, used by the STOP button) |
@@ -122,3 +122,7 @@ Numbers **2–19 and 48–50** are edits inside upstream KlipperScreen files: th
 | 53 | 2026-10-22 | `.claude/skills/fork-workflow/` | Claude Code skill: how to change, check, install and ship the fork, with gotchas from the decision log; `layout-checks.md`, `upstream-merge.md` (klipper-ui D-102) |
 | 54 | 2026-11-03 | `ks_includes/ss_queue.py` | Job queue list (Moonraker's queue, so Mainsail shows the same): move earlier / later / remove, next job's filament check, Not now / Print anyway / Change to X or Plate is clear, start (klipper-ui D-111). Queue helpers in `starstack.py`, styles `.ss-q*` |
 | 55 | 2026-11-03 | `panels/ss_queue.py` | Queue page, opened from Home (klipper-ui D-111) |
+| 57 | 2026-11-10 | `REVIEW.md` | What a reviewer looks for here: failures per area (heaters left on, moves while printing, STOP hidden, GTK thread blocked, unmarked upstream edits), paperwork, CI checks to skip; report format from klipper-ui's REVIEW.md (klipper-ui D-138) |
+| 58 | 2026-11-14 | `ks_includes/starstack.py`, `panels/ss_queue.py` | `Pager`: the list sits in an overlay so it no longer stretches the area it is measured in; 4 queued jobs made the Queue page a few px too tall, so the content guard showed a scroll bar over the remove buttons (klipper-ui D-139); the Queue page drops its "Queue" title so 4 jobs fit without arrows and longer queues get 3 per page (user, mockup A) |
+| 59 | 2026-11-23 | `ks_includes/ss_probe_check.py` | Runs klipper-ui's `scripts/probe_check.py --json` in a thread in two parts: a full home and homes from Z 10 and 40, then, only after the user says the first touch reached the bed, the home from near the top; each checked against the motor steps and a probe (B-24; user, review) and returns its result on the GTK thread; Advanced flow: confirm, part 1, "did the first touch reach the bed?" (Yes runs part 2), result; failure with the user's fix steps. Used by setup (#60) and Settings (#25) (klipper-ui D-141) |
+| 60 | 2026-11-10 | `panels/ss_setup.py` | First power-up setup (klipper-ui D-114, D-137): welcome, time zone (12/24 h follows the existing setting), Wi-Fi, self-check (sensors, nozzle tap on the probe before anything moves, nozzle and bed heaters, part fan question, homing), 5-page tour, filament, first print; every step skippable. 2026-11-23: the homing check runs klipper-ui's probe check (#59), then asks whether the first touch reached the bed; its failure page has the user's turn off, unplug, fix and rerun steps (klipper-ui D-141). `starstack.offer_setup()` opens it once when there are no own files and no print history |

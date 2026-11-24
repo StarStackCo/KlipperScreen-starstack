@@ -176,6 +176,28 @@ def history(screen, limit, on_jobs):
     )
 
 
+# ---------------------------------------------------------------- first power-up (klipper-ui D-114)
+_setup_offered = False
+
+
+def offer_setup(screen, own_files):
+    """Home calls this: a new printer (setup never finished or skipped, no own files, empty print
+    history) opens the first power-up setup, once per start. A failed history request opens
+    nothing, so a printer in use never gets it by mistake."""
+    global _setup_offered
+    if _setup_offered or own_files or get_setting("setup_done"):
+        return
+    _setup_offered = True
+
+    def got(r):
+        busy = screen.printer.get_stat("idle_timeout", "state") == "Printing"  # e.g. a macro
+        idle = screen._cur_panels == ["ss_home"] and not is_printing(screen.printer) and not busy
+        if r is not None and not r.get("jobs") and idle:
+            screen.show_panel("ss_setup", remove_all=True)
+
+    request(screen, "server.history.list", {"limit": 1}, got)
+
+
 # ---------------------------------------------------------------- job queue (klipper-ui D-111)
 # Moonraker's own job queue, so Mainsail's Queue panel shows the same list. It never starts the
 # next job by itself (automatic_transition off): the screen starts it when the plate is clear.
@@ -465,10 +487,16 @@ class Pager:
         self.height = 0
         self.want_row = None  # show_row() before the first measurement: applied on render
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, vexpand=True)
-        self.area = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, vexpand=True)
+        # The list is an overlay so it adds nothing to the area's minimum height: otherwise a list
+        # taller than the free space stretches the area, the area then measures as that tall, and
+        # the page overflows into a scroll bar (4 queued jobs). Now the area is the free space only.
+        self.area = Gtk.Overlay(vexpand=True)
+        self.area.add(Gtk.Box())
         self.area.connect("size-allocate", self._allocated)
-        self.list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=spacing)
-        self.area.pack_start(self.list, False, False, 0)
+        self.list = Gtk.Box(
+            orientation=Gtk.Orientation.VERTICAL, spacing=spacing, valign=Gtk.Align.START
+        )
+        self.area.add_overlay(self.list)
         self.box.pack_start(self.area, True, True, 0)
         self.foot = Gtk.Box(spacing=8)
         css = "ss-btn ss-btn-outline ss-btn-pager" + (" ss-btn-pager-sm" if compact else "")
@@ -567,8 +595,8 @@ class Pager:
                 return
 
     def _allocated(self, widget, alloc):
-        # Measure only while the arrow bar is hidden (the full space); with the bar shown the
-        # list's own height keeps the area from shrinking, so later sizes aren't the free space.
+        # Measure only while the arrow bar is hidden: that is the full space, and pages() takes the
+        # bar's FOOT off itself when it needs one.
         if self.foot.get_visible():
             return
         if alloc.height != self.height:
@@ -984,6 +1012,10 @@ class StarStackRail:
             b.connect("clicked", self.go, page)
             b.connect("clicked", self.screen.remove_keyboard)
             slot(b, 48, 44)
+            # hidden during the first power-up setup (on_panel). no_show_all also keeps show_all()
+            # away from the icon inside, so show it here
+            img.show()
+            b.set_no_show_all(True)
             self.nav[page] = b
         self.stop = Gtk.Button(can_focus=False)
         stop_box = Gtk.Box(
@@ -1065,7 +1097,15 @@ class StarStackRail:
         base.action_bar.set_size_request(64, -1)
         self._contain_content(base)
 
+    def setup_panel(self, panel_name=None):
+        """The first power-up setup panel while it (or a page it opened) shows, else None."""
+        if "ss_setup" in self.screen._cur_panels or panel_name == "ss_setup":
+            return self.screen.panels.get("ss_setup")
+        return None
+
     def go(self, widget, page):
+        if self.setup_panel():  # setup: the icons are only shown, not tappable (user)
+            return
         if (
             self.screen._cur_panels
             and self.screen._cur_panels[0] == page
@@ -1083,9 +1123,16 @@ class StarStackRail:
             "error",
             None,
         )
+        # the setup (and the pages it opens) shows STOP only: no way out of a running self-check
+        # with no way back in (user, klipper-ui D-137)
+        # From its tour on, the icons show again (not tappable, see go()) and the tour highlights
+        # the one it explains.
+        setup = self.setup_panel(panel_name)
         for page, b in self.nav.items():
-            set_class(b, "ss-rail-active", page == root)
+            on = setup.rail_mark == page if setup else page == root
+            set_class(b, "ss-rail-active", on)
             b.set_sensitive(ready)
+            b.set_visible(not setup or setup.rail_show)
         self.update_stop()
 
     def update_stop(self):
